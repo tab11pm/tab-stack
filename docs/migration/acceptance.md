@@ -1,6 +1,6 @@
 # Матрица проверок миграции tab-stack
 
-Дата: 2026-10-10. Это исходное состояние аудита чтением.
+Дата: 2026-10-10. Исходный аудит дополнен результатами установки 1А.
 Все живые сценарии ниже ещё не проверены в рамках миграции.
 
 Подготовка 1А: создан и проверен точный source INI для X11 greeter и
@@ -9,14 +9,16 @@
 checksum gate для существующего destination также прошли. Proposed value
 по читаемым файлам — x11. Пользователь выполнил host preview
 с locale действующего SDDM: PASS, General.DisplayServer=x11,
-origin=/etc/sddm.conf.d/zz-tab-stack-greeter.conf; destination отсутствует.
-Текущая конфигурация по-прежнему задаёт wayland; system override отсутствует.
-Установка на host и runtime приёмка не выполнены. SDDM не перезапускался.
+origin=/etc/sddm.conf.d/zz-tab-stack-greeter.conf; до установки destination отсутствовал.
+Пользователь выполнил host backup/install/verify: PASS. Новый system override
+установлен; installed effective DisplayServer=x11. Точные bytes и mode 644
+дополнительно проверены чтением. Свежий root-owned backup сохранён локально.
+SDDM не перезапускался; runtime greeter и login приёмка ещё не выполнены.
 Доступ к состояниям SDDM/сессий через D-Bus запрещён sandbox.
 Пользователь подтвердил успешный `sudo -v` в административной записи;
 пользователь также предоставил SDDM=active и одну пользовательскую сессию
-плюс её user manager. Нужны свежая системная копия, установка
-и отдельно согласованное применение.
+плюс её user manager. Ожидаются отдельное применение, greeter/login/relogin,
+cold boot и проверка отката на host.
 
 Связи: [реестр](dependency-register.md), [восстановление](recovery.md),
 [дорожная карта](../superpowers/specs/2026-10-10-independent-tab-stack-roadmap.md).
