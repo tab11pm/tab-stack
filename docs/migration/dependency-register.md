@@ -160,7 +160,7 @@ Package metadata подтверждена запросами к локально
 - **Компонент/владелец:** /usr/share/wayland-sessions/shojiwm.desktop, владелец kisa-shojiwm
 - **Запуск/область:** SDDM user session; Exec=/usr/bin/shoji_wm --tty
 - **Зависимость:** локальная tab-stack; Omarchy CLI/IPC
-- **Доказательство:** ShojiWM session entry существует. autologin.conf указывает Session=omarchy.desktop; этот entry не найден в просмотренном /usr/share/wayland-sessions. Нельзя заключать, что текущий вход использует autologin: фактическая сессия и другие SessionDir ещё не подтверждены.
+- **Доказательство:** ShojiWM session entry существует. autologin.conf указывает Session=omarchy.desktop. Уточнение подготовки этапа 1: этот entry найден в /usr/local/share/wayland-sessions и запускает Hyprland через UWSM; SDDM читает этот каталог по default SessionDir. Автологин относится к другой учётной записи, не к текущему профилю. Нельзя заключать, что текущий вход использует autologin: фактическая сессия не подтверждена.
 - **Статус:** подтверждено конфигурацией
 - **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
 - **Решение:** заменить
