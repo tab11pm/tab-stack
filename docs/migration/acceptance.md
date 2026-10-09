@@ -7,15 +7,16 @@
 [руководство установки/отката](../../dotfiles/docs/greeter.md). Проверки приоритета
 на четырёх временных fixtures с Qt ordering tool прошли; три проверки
 checksum gate для существующего destination также прошли. Proposed value
-по читаемым файлам — x11; host preview с locale действующего SDDM
-ещё не подтверждён из sandbox.
+по читаемым файлам — x11. Пользователь выполнил host preview
+с locale действующего SDDM: PASS, General.DisplayServer=x11,
+origin=/etc/sddm.conf.d/zz-tab-stack-greeter.conf; destination отсутствует.
 Текущая конфигурация по-прежнему задаёт wayland; system override отсутствует.
 Установка на host и runtime приёмка не выполнены. SDDM не перезапускался.
 Доступ к состояниям SDDM/сессий через D-Bus запрещён sandbox.
 Пользователь подтвердил успешный `sudo -v` в административной записи;
 пользователь также предоставил SDDM=active и одну пользовательскую сессию
-плюс её user manager. Нужны host preview приоритета, свежая системная копия
-и окно применения.
+плюс её user manager. Нужны свежая системная копия, установка
+и отдельно согласованное применение.
 
 Связи: [реестр](dependency-register.md), [восстановление](recovery.md),
 [дорожная карта](../superpowers/specs/2026-10-10-independent-tab-stack-roadmap.md).
