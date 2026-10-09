@@ -65,7 +65,8 @@ Ghostty, SDDM и другие самостоятельные компонент�
 один override; свежий root-owned backup и installed effective DisplayServer=x11
 подтверждены операторской проверкой. INI bytes/mode проверены чтением.
 Применение подтверждено журналом текущей загрузки: SDDM запускает Xorg.
-Прежняя тема сохраняется; нужны подтверждение Wayland/ShojiWM desktop,
+Прежняя тема сохраняется; пользователь подтвердил environment
+Wayland/ShojiWM. Нужны process/display ownership, работоспособность desktop,
 logout/relogin и cold boot. Системный откат исполнением ещё не проверен.
 Зависит от этапа 0; часть 1А пока не принята.
 

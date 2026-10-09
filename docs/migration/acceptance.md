@@ -16,13 +16,15 @@ origin=/etc/sddm.conf.d/zz-tab-stack-greeter.conf; до установки desti
 дополнительно проверены чтением. Свежий root-owned backup сохранён локально.
 После применения пользователь сообщил о прежнем внешнем виде экрана входа.
 Фильтр журнала текущей загрузки показал запуск `/usr/bin/X` со стороны SDDM:
-backend X11 подтверждён. Тема намеренно сохранялась. Тип/владелец desktop
-сессии, relogin, cold boot и host rollback ещё не приняты.
+backend X11 подтверждён. Тема намеренно сохранялась. Пользовательский терминал сообщает XDG_SESSION_TYPE=wayland и
+XDG_CURRENT_DESKTOP=ShojiWM. Process/display ownership, работоспособность
+панели и окон, relogin, cold boot и host rollback ещё не приняты.
 Доступ к состояниям SDDM/сессий через D-Bus запрещён sandbox.
 Пользователь подтвердил успешный `sudo -v` в административной записи;
 пользователь также предоставил SDDM=active и одну пользовательскую сессию
 плюс её user manager. Применение подтверждено запуском Xorg; ожидаются
-desktop session verification, logout/relogin, cold boot и проверка отката на host.
+process/display ownership и работоспособность desktop, logout/relogin,
+cold boot и проверка отката на host.
 
 Связи: [реестр](dependency-register.md), [восстановление](recovery.md),
 [дорожная карта](../superpowers/specs/2026-10-10-independent-tab-stack-roadmap.md).
@@ -31,7 +33,7 @@ desktop session verification, logout/relogin, cold boot и проверка от
 | --- | --- | --- | --- | --- | --- | --- |
 | cold boot | Да | boot.loader: пакеты/hooks есть; /boot недоступен | Загрузка в рабочий greeter без Hyprland | После проверки rescue и backups перезагрузить вручную | 1, 7 | не создан |
 | greeter | Да | Установленный override x11 проверен; пользовательский журнал текущей загрузки подтверждает запуск /usr/bin/X. Экран виден с прежней темой; input/outputs и стабильность отдельно не проверены | Рабочий экран входа с независимым backend | Проверить действующие settings, затем вход после замены | 1 | не создан |
-| вход | Да | login.session: Shoji entry есть; autologin ссылается на Omarchy | Выбранная сессия tab-stack и правильное окружение | Ручной вход после проверки TTY; отдельно автологин, если нужен | 1 | не создан |
+| вход | Да | После применения пользовательский терминал сообщает type=wayland, desktop=ShojiWM; process/display ownership и UI отдельно не проверены. Автологин сохранён | Выбранная сессия tab-stack и правильное окружение | Ручной вход после проверки TTY; отдельно автологин, если нужен | 1 | не создан |
 | выход/повторный вход | Да | session.lifecycle: direct compositor session; разные shutdown paths | Завершается нужная сессия, повторный запуск без старых процессов | Сохранить работу и проверить logout/login, ownership процессов/targets | 1 | не создан |
 | panel recovery | Да | session.panel: WM restart=on-failure; runtime не проверен | Одна восстановленная панель, locker не затронут | Контролируемый отказ панели после проверки recovery | 1–2 | не создан |
 | lock | Да | lock.request и lock.pam: отдельный locker, сейчас Omarchy PAM fallback | Secure lock, неверный пароль не открывает сессию | После TTY/recovery проверить пароль, repeated request и outputs | 2 | не создан |

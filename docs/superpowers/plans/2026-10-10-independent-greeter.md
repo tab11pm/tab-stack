@@ -186,3 +186,8 @@ SDDM не перезапускался. Вход, backend запущенного
 Тип и владелец desktop session ещё ожидают проверки из её терминала.
 Live logout/relogin, cold boot и host rollback по-прежнему не приняты.
 Частные journal timestamps, auth paths и account names не публикуются.
+
+После применения пользователь предоставил вывод из терминала desktop:
+XDG_SESSION_TYPE=wayland, XDG_CURRENT_DESKTOP=ShojiWM. Это подтверждение
+session environment, не отдельная проверка process/display ownership.
+Работа панели/окон, logout/relogin, cold boot и live rollback ещё ожидаются.
