@@ -1,4 +1,4 @@
-# tab-stack
+# Tab Stack [![Awesome](https://awesome.re/badge.svg)](https://awesome.re)
 
 Наш стек рабочего стола и инструментов для разработки: ShojiWM, Quickshell, Walker, скиллы, хуки и конфигурация AI-ассистентов. Репозиторий — [tab11pm/tab-stack](https://github.com/tab11pm/tab-stack).
 
