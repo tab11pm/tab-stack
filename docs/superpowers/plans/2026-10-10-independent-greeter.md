@@ -176,3 +176,13 @@ installed General.DisplayServer=x11 и final verification=PASS.
 Частный путь backup и команда TTY rollback сохранены локально, не публикуются.
 SDDM не перезапускался. Вход, backend запущенного greeter, relogin/cold boot
 и реальный host rollback по-прежнему не приняты.
+
+После применения пользователь увидел экран входа с прежним оформлением.
+Это соответствует scope: тема не менялась. Предоставленный фильтр журнала
+текущей загрузки показывает три запуска `/usr/bin/X` со стороны SDDM;
+запуск X11 greeter backend подтверждён. Причина повторных запусков и их
+стабильность этим фильтром не установлены. Отсутствие строк start-hyprland
+в этом выводе не доказывает отсутствие других Hyprland desktop sessions.
+Тип и владелец desktop session ещё ожидают проверки из её терминала.
+Live logout/relogin, cold boot и host rollback по-прежнему не приняты.
+Частные journal timestamps, auth paths и account names не публикуются.
