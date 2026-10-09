@@ -52,6 +52,15 @@ override it. Your wallpaper collection is not part of this repository. A neutral
 SVG is used when no wallpaper has been selected. The picker reads common raster
 image formats and uses Pillow to cache thumbnails.
 
+Static images can be organized into named groups, such as Night, Morning, Anime
+or Landscapes. In `Super+W`, use **Новая группа** (New group) to name a collection
+and select its photos, then choose it from **Группа** (Group) above the carousel.
+**Изменить** (Edit) changes its name or membership; **Все изображения** (All images)
+returns to the full library. A photo can belong to several groups. Group selection
+is manual and remembered between sessions; selecting a group does not apply a
+wallpaper until Enter. See [wallpaper groups](wallpaper-groups.md) for keyboard
+controls and local-state details.
+
 `Super+W` applies **both** the selected wallpaper and the selected widget preset,
 regardless of which row currently has keyboard focus. Preset cards include small
 layout previews; disabled integrations are filtered out. State is written to the

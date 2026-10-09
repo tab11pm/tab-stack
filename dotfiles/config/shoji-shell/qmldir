@@ -22,6 +22,8 @@ ConnectionTile 1.0 ConnectionTile.qml
 StatCard 1.0 StatCard.qml
 Brightness 1.0 Brightness.qml
 singleton Wallpapers 1.0 Wallpapers.qml
+singleton WallpaperGroups 1.0 WallpaperGroups.qml
+WallpaperGroupEditor 1.0 WallpaperGroupEditor.qml
 singleton LiveWallpapers 1.0 LiveWallpapers.qml
 LiveWallpaperWave 1.0 LiveWallpaperWave.qml
 singleton WidgetLayouts 1.0 WidgetLayouts.qml

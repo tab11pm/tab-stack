@@ -32,7 +32,9 @@ local CLI server; provider API URLs are public service endpoints without secrets
 
 `integrations.env`, selected wallpaper paths, dock pins, widget caches, session
 titles, account balances and provider output belong to the installing user. The
-installer keeps live configuration outside the repository. It backs up replaced
+wallpaper groups file (`wallpaper-groups.json`) also contains private collection
+names and photo paths; it is excluded from publication and preserved on reinstall.
+The installer keeps live configuration outside the repository. It backs up replaced
 directories privately and never uploads their contents. Do not publish those backups.
 
 The local integration file is trusted shell code. Prefer CLI-owned credential

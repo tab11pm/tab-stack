@@ -1,5 +1,28 @@
 # Validation record
 
+## 2026-10-09 wallpaper groups
+
+The named static-image groups feature was exported separately from local wallpaper
+state and unrelated desktop changes. Source validation in this checkout:
+
+- `wallpaper-groups-check.mjs`: naming, shared membership, filtering, serialization,
+  missing images and deletion passed with synthetic paths.
+- Qt 6 `qmllint` on the picker, wallpaper catalogue, group state and editor: no
+  error-level diagnostics; existing dynamic `currentItem` properties and
+  `QProcess::ExitStatus` metadata warnings remain.
+- Qt wallpaper shaders compiled for the isolated installer check; generated
+  binaries are ignored by Git.
+- `check-install.py`: temporary-home installation and reinstallation passed,
+  including preservation of group state and existing integration settings.
+- Publication privacy checks and Git whitespace checks passed.
+
+Before export, the installed implementation was exercised in an isolated offscreen
+Quickshell instance: atomic writes, restart loading, editor save/cancel and the
+empty-group apply guard passed. Rendered picker/editor previews were inspected
+at 1280×900 and 800×600. This does not establish compositor or GPU behavior on a
+fresh desktop session; the publication checkout was not installed over the live
+desktop or used to restart it.
+
 ## 2026-10-09 custom session lock
 
 The custom locker, profile button and `Super+L` binding were integrated into the

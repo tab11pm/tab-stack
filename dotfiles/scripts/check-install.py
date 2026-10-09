@@ -23,16 +23,24 @@ def main():
         assert str(home) in config.joinpath("elephant/files.toml").read_text()
         local = config / "shoji-shell/integrations.env"
         local.write_text("SHOJI_ENABLE_GITHUB=0\n# local setting\n")
+        groups = config / "shoji-shell/wallpaper-groups.json"
+        group_state = {"version": 1, "selected": "group_fixture", "groups": [
+            {"id": "group_fixture", "name": "Night", "images": ["file:///tmp/wallpaper-groups-fixture/night.png"]}
+        ]}
+        groups.write_text(json.dumps(group_state) + "\n")
         user_file = config / "ghostty/user-note"
         user_file.write_text("preserve in backup\n")
         subprocess.run([*args, "--apply"], check=True, capture_output=True)
         assert "local setting" in local.read_text()
+        assert json.loads(groups.read_text()) == group_state, "Reinstall lost wallpaper groups"
+        assert config.joinpath("shoji-shell/WallpaperGroups.qml").is_file()
+        assert config.joinpath("shoji-shell/WallpaperGroupEditor.qml").is_file()
         manifests = list(home.glob(".local/state/tab-stack/backups/*/manifest.json"))
         assert len(manifests) == 2
         backed_up = [Path(e["backup"]) for m in manifests for e in json.loads(m.read_text()) if e["backup"]]
         assert any((p / "user-note").is_file() for p in backed_up)
         assert (home / ".local/bin/codex-resume-ghostty").stat().st_mode & 0o111
-        print("Preview, isolated install, generated paths, runtime link and second-install backups: OK")
+        print("Preview, isolated install, generated paths, runtime link, wallpaper groups and second-install backups: OK")
 
 
 if __name__ == "__main__":
