@@ -277,3 +277,254 @@ ps -eo comm | rg '^(shoji_wm|quickshell|Hyprland|elephant|nm-applet|gnome-keyrin
 Из результатов перед публикацией удаляются персональные пути. Выбранное окружение и имена процессов не заменяют проверку ownership конкретной сессии. Для /boot и реальных snapshots требуется отдельная минимальная проверка в доступном пользователю окружении; не снимать ограничения массовым privileged dump.
 
 Порядок конфигураций SDDM сверялся с [sddm.conf(5)](https://man.archlinux.org/man/sddm.conf.5.en): системные defaults, local directory, затем /etc/sddm.conf. Не проверено, какие значения использует уже запущенный процесс. Дата проверки источника: 2026-10-10.
+
+## Функции и локальные различия
+
+### lock.request
+
+- **Функция:** Ручная блокировка
+- **Компонент/владелец:** lock/launch.py; LockScreen.qml; lock/SessionLock.qml
+- **Запуск/область:** Super+L и кнопка профиля → отдельный Quickshell locker
+- **Зависимость:** локальная tab-stack
+- **Доказательство:** Launcher ждёт secure, отдельный process и --no-duplicate; SessionLock проверяет secure/requested до PAM. Panel reload не является владельцем locker. --check запускает QML и пишет runtime, поэтому не запускался в аудите.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** сохранить
+- **Этап:** 2
+- **Предусловия:** Проверить recovery и PAM до live lock
+- **Проверка:** Неверный/верный пароль, повторный запрос, hotplug, panel restart
+- **Откат:** Вернуть locker files; аварийный orphaned lock требует выхода через TTY, panel restart не обещает recovery
+
+### lock.pam
+
+- **Функция:** Независимая политика пароля
+- **Компонент/владелец:** /etc/pam.d/omarchy-lock-password; bundled lock/pam/shoji-lock
+- **Запуск/область:** Launcher выбирает первый существующий policy file
+- **Зависимость:** Omarchy CLI/IPC; локальная tab-stack
+- **Доказательство:** /etc/pam.d/shoji-lock отсутствует; omarchy-lock-password присутствует; swaylock и hyprlock policy отсутствуют. По текущему порядку launcher выбирает Omarchy policy. Реально запущенный locker/PAM выбор не подтверждён. Bundled shoji-lock включает system-auth и system-local-login.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** заменить
+- **Этап:** 2
+- **Предусловия:** Сохранить rate limiting/account policy и проверить password flow
+- **Проверка:** Блокировка работает при отсутствии policy Omarchy
+- **Откат:** Восстановить прежнюю PAM конфигурацию до удаления Omarchy; не перезапускать active locker
+
+### sleep.preparation
+
+- **Функция:** Блокировка до suspend
+- **Компонент/владелец:** omarchy-sleep-lock.service; logind 20-inhibit-delay.conf
+- **Запуск/область:** graphical-session.target → delay inhibitor
+- **Зависимость:** Omarchy CLI/IPC; Hyprland CLI/протокол
+- **Доказательство:** Unit enabled link существует; helper запрашивает lock/status через Omarchy shell и clamshell через Hyprland helper. InhibitDelayMaxSec=15 в drop-in. Active state неизвестен. Истечение delay inhibitor не отменяет suspend автоматически.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** заменить
+- **Этап:** 3
+- **Предусловия:** Независимый secure lock и verified recovery
+- **Проверка:** Manual suspend/lid возвращают закрытый экран; failure path явный
+- **Откат:** Вернуть sleep units и logind drop-in; новую обработку убрать до следующего сна
+
+### idle.control
+
+- **Функция:** Автоблокировка и inhibition
+- **Компонент/владелец:** Shoji locker README; omarchy toggle idle state marker
+- **Запуск/область:** Требуется самостоятельный idle consumer
+- **Зависимость:** Omarchy CLI/IPC; локальная tab-stack
+- **Доказательство:** README явно не включает automatic idle/sleep lock. По просмотренному index.tsx нет отдельного idle supervisor; idle={inactive} относится к rendering, не к user inactivity. Поддержка native idle protocols не проверена.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** исследовать до решения
+- **Этап:** 3
+- **Предусловия:** Проверить idle-notify/idle-inhibit/API композитора
+- **Проверка:** Видео/презентации блокируют idle; после закрытия inhibition снимается
+- **Откат:** Отключить новые timers/consumer, вернуть ручную блокировку
+
+### outputs.power
+
+- **Функция:** Питание экранов, крышка и ночной режим
+- **Компонент/владелец:** src/monitors.ts; hyprsunset.service; omarchy toggle nightlight
+- **Запуск/область:** Мониторный IPC и будущая power service
+- **Зависимость:** локальная tab-stack; Hyprland CLI/протокол
+- **Доказательство:** monitors.ts содержит apply/preview/rollback, но это не доказательство DPMS. Nightlight CLI использует hyprctl hyprsunset. Output-power/gamma protocol support не проверена; по клиентскому коду нельзя считать её отсутствующей.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** исследовать до решения
+- **Этап:** 3
+- **Предусловия:** Протокольная capability проверка; nightlight планируется также в этапе 5
+- **Проверка:** Off/on, resume/hotplug и temperature restore без hyprctl
+- **Откат:** Вернуть profile monitors; остановить новый power/gamma consumer
+
+### hardware.applicability
+
+- **Функция:** Матрица оборудования
+- **Компонент/владелец:** sysfs power supply; ACPI lid; локальный профиль outputs
+- **Запуск/область:** Hardware / compositor
+- **Зависимость:** общая Arch; локальная tab-stack
+- **Доказательство:** В доступном sysfs есть Battery и Mains, в ACPI lid есть LID; профиль содержит HDMI и eDP. Поэтому батарея/крышка применимы, многомониторная проверка нужна. Профиль не доказывает текущее физическое подключение. Серийные номера не собирались.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** сохранить
+- **Этап:** 3
+- **Предусловия:** Получить фактический список выходов из host session
+- **Проверка:** Проверить крышку с/без внешнего output, battery warnings, hotplug
+- **Откат:** Восстановить профиль outputs, сохранить работающую настройку крышки
+
+### network.secrets
+
+- **Функция:** Wi-Fi и хранение секретов
+- **Компонент/владелец:** Quickshell Networking; ControlCentre.qml
+- **Запуск/область:** Панель → network.connect / connectWithPsk
+- **Зависимость:** общая Arch; локальная tab-stack
+- **Доказательство:** Код показывает PSK prompt для неизвестной защищённой сети и очищает поле. NetworkManager enabled symlink существует. nm-applet не найден в PATH; наличие другого secret agent/runtime persistence не проверено. Данные соединений и пароли не читались.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** исследовать до решения
+- **Этап:** 4
+- **Предусловия:** Проверить secure network connect и credential persistence на новой учётной записи
+- **Проверка:** Новое подключение, повторный вход, отказ/отмена без раскрытия пароля
+- **Откат:** Вернуть network UI; существующие NM connection secrets не изменять
+
+### audio.stack
+
+- **Функция:** Звук и микрофон
+- **Компонент/владелец:** PipeWire/WirePlumber, Services.qml, pavucontrol
+- **Запуск/область:** Socket activation; panel via PipeWire
+- **Зависимость:** общая Arch; локальная tab-stack
+- **Доказательство:** PipeWire sockets enabled links, wireplumber alias; Services.qml использует default sink, outputs, volume; горячие клавиши wpctl. Нет зависимости от hyprctl в этих маршрутах. Реальный звук/микрофон не проверялся.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** сохранить
+- **Этап:** 4
+- **Предусловия:** Проверить sockets/session agents и default devices
+- **Проверка:** Выходы/микрофон, mute/volume, смена устройства
+- **Откат:** Вернуть выбранные sound configs/units; не удалять shared runtime
+
+### bluetooth.stack
+
+- **Функция:** Bluetooth и pairing
+- **Компонент/владелец:** Quickshell Bluetooth; bluedevil-wizard; bt-agent.service
+- **Запуск/область:** Panel + graphical-session.target
+- **Зависимость:** общая Arch; Omarchy CLI/IPC
+- **Доказательство:** bt-agent unit использует NoInputNoOutput; его комментарий рассчитывает на pairable gating панели Omarchy. Таб-оболочка использует Bluetooth UI/мастер; реальное pairing и ownership agent не проверены. Это требует проверки, а не вывода о текущей уязвимости.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** исследовать до решения
+- **Этап:** 4
+- **Предусловия:** Проверить текущие pairable/agent states и избежать дублей
+- **Проверка:** Pair/forget/reconnect с явным участием пользователя
+- **Откат:** Вернуть unit/UI, сохранить paired devices database
+
+### auth.polkit-keyring
+
+- **Функция:** Повышение прав и secret storage
+- **Компонент/владелец:** polkit-kde-agent; gnome-keyring-daemon socket/service; SDDM PAM
+- **Запуск/область:** WM startup / user socket activation
+- **Зависимость:** общая Arch
+- **Доказательство:** WM явно запускает KDE polkit. GNOME Keyring socket enabled; service components pkcs11,secrets. Просмотренные PAM sddm и sddm-autologin не содержат прямой pam_gnome_keyring строки; transitive includes и runtime unlock не доказаны.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** исследовать до решения
+- **Этап:** 4
+- **Предусловия:** Разобрать activation/unlock path без чтения keyring содержимого
+- **Проверка:** Polkit dialog и keyring после обычного входа/автологина
+- **Откат:** Вернуть PAM/unit configs; не удалять credential stores
+
+### power.profiles
+
+- **Функция:** Профили питания
+- **Компонент/владелец:** power-profiles-daemon 0.30-1; installed Power.qml
+- **Запуск/область:** Панель → powerprofilesctl
+- **Зависимость:** общая Arch; локальная tab-stack
+- **Доказательство:** powerprofilesctl доступен; installed Power.qml читает и меняет профили. В опубликованном checkout dotfiles/config/shoji-shell/Power.qml отсутствует. Работа на чистой установке не подтверждена.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** исследовать до решения
+- **Этап:** 4
+- **Предусловия:** Отдельно перенести reviewed power feature в source; проверить prerequisites
+- **Проверка:** Profiles list/set и battery status без Omarchy
+- **Откат:** Сохранить installed Power.qml и service; не заменять source автоматически
+
+### input.xwayland
+
+- **Функция:** Методы ввода и X11 приложения
+- **Компонент/владелец:** xorg-xwayland dependency; fcitx5; omarchy-fcitx5.service
+- **Запуск/область:** Compositor native backend / user target
+- **Зависимость:** общая Arch; Omarchy CLI/IPC
+- **Доказательство:** fcitx5 доступен; Omarchy unit содержит session ordering и WAYLAND_DISPLAY condition. xwayland-satellite не найден в PATH, но xorg-xwayland есть в dependency compositor. Это не доказательство отсутствия XWayland. Keyboard.qml uses native Shoji IPC.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** исследовать до решения
+- **Этап:** 4
+- **Предусловия:** Разобрать фактический native XWayland/backend и сохранить compose/input поведение
+- **Проверка:** Русский/English, compose, X11 GUI, повторный вход
+- **Откат:** Вернуть input env/unit files и binaries
+
+### appearance.theme
+
+- **Функция:** Темы, шрифты и wallpaper
+- **Компонент/владелец:** Theme.qml; Ghostty config; Omarchy state/theme hooks
+- **Запуск/область:** Quickshell/Ghostty; Omarchy theme CLI
+- **Зависимость:** локальная tab-stack; Omarchy CLI/IPC
+- **Доказательство:** Theme.qml фиксирует Catppuccin/Noto Sans; Ghostty отдельная Catppuccin theme и GTK CSS. Просмотренные theme hooks не содержат tab-stack адаптера. Nightlight требует capability investigation.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** заменить
+- **Этап:** 5
+- **Предусловия:** Сохранить пользовательские profiles и согласовать собственные settings
+- **Проверка:** Theme/font changes применяются последовательно без Omarchy IPC
+- **Откат:** Вернуть фиксированную палитру и terminal config; wallpapers локально сохраняются
+
+### capture.screenshot
+
+- **Функция:** Скриншоты
+- **Компонент/владелец:** scripts/screenshot-region и screenshot-all; Flameshot/grim/slurp/wl-copy
+- **Запуск/область:** Hotkeys WM → scripts
+- **Зависимость:** локальная tab-stack; общая Arch
+- **Доказательство:** Регион определяет monitor через Shoji IPC и Qt screen order, затем Flameshot; fallback grim/slurp. Fullscreen grim и wl-copy. Installed screenshot-region отличается от source, не синхронизирован. Omarchy capture scripts содержат hyprctl.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** сохранить
+- **Этап:** 5
+- **Предусловия:** Проверить локальные различия и native capture protocols
+- **Проверка:** Region/output/all, clipboard, scaling; live capture отложен
+- **Откат:** Вернуть installed scripts из backup, сохранить tools
+
+### capture.screencast
+
+- **Функция:** Запись и screen sharing
+- **Компонент/владелец:** ShojiWM portal; OBS; GPU Screen Recorder
+- **Запуск/область:** Applications → portal / recorder
+- **Зависимость:** локальная tab-stack; общая Arch; Hyprland CLI/протокол
+- **Доказательство:** obs и gpu-screen-recorder присутствуют. Это уже возможные независимые инструменты, не отсутствующая функция по определению. Portal declares ScreenCast; Omarchy recording helpers содержат hyprctl/indicator IPC. Capability/selection/browser/recording не проверены.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** исследовать до решения
+- **Этап:** 5
+- **Предусловия:** Проверить existing recorder прежде чем писать новый; подтвердить portal support
+- **Проверка:** OBS/браузер, stop/indicator; отдельное окно не обещается без проверки
+- **Откат:** Вернуть portal routing и recorder config
+
+### source.drift
+
+- **Функция:** Различия installed/source
+- **Компонент/владелец:** Выбранные 16 файлов и исходный git status
+- **Запуск/область:** Отдельная публикация и installation
+- **Зависимость:** локальная tab-stack
+- **Доказательство:** 14 из 16 whitelist files одинаковы, screenshot-region отличается, Power.qml отсутствует в source. index.tsx и monitors.ts совпадают с рабочим checkout, но checkout содержит tracked/untracked несохранённые изменения; это не равно HEAD. Secret/runtime файлы не сравнивались.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** исследовать до решения
+- **Этап:** 6
+- **Предусловия:** Сохранить локальные changes отдельно; feature-by-feature review
+- **Проверка:** Чистая установка не теряет проверенные функции; public privacy pass
+- **Откат:** Component backups и исходный checkout без массового копирования
+
+
+## Выводы для этапа 1
+
+Первое изменение должно закрыть greeter/session lifecycle: независимый greeter compositor, корректный выбор ShojiWM, импорт окружения и управление session targets. SDDM можно сохранить. Конкретный greeter backend выбирается после проверки TTY/recovery; автоматический переход на другой display manager не нужен.
+
+До изменений входа требуется вручную подтвердить доступ к TTY и вернуть отсутствующие manager-state результаты. В этапах 2–3 сначала отделить PAM и lock/sleep path. Bootstrap и обновления нельзя свести к удалению пакета Omarchy: сохраняются boot hooks и источники необходимых интеграций.
+
+Безопасная будущая capability проверка: из обычного терминала получить только имена globals Wayland через доступный inspection tool (например wayland-info), сравнить idle-notify, idle-inhibit, output-power, gamma-control и ext-session-lock с API/кодом pinned ShojiWM. Данная проверка не выполнена; не запускать blocker/check GUI автоматически.
