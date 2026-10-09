@@ -21,12 +21,12 @@ import {
   layerSource,
   ManagedWindow,
   read,
-  type DisplayConfigDraft,
   compilePopupEffect,
   popupSource,
 } from "shoji_wm";
 import type { CompositionRenderable, ManagedWindowRect } from "shoji_wm/types";
 import { createIpcServer } from "shoji_wm/ipc";
+import { registerMonitors } from "./monitors";
 import {
   HybridWindowManager,
   isMateEngineWindow,
@@ -538,20 +538,7 @@ COMPOSITOR.key.bind("profile", "Super+Shift+T", () => {
   COMPOSITOR.debug.enableProfile(profileEnabled);
 });
 
-COMPOSITOR.output.configure((context) => {
-  const display: DisplayConfigDraft = {};
-
-  for (const output of context.connected) {
-    display[output.name] = {
-      mode: "extend",
-      resolution: "best",
-      position: "auto",
-      scale: 1,
-    };
-  }
-
-  return display;
-});
+registerMonitors(WORKSPACE_IPC);
 
 COMPOSITOR.input.configure((input, _context) => {
   input.global = {

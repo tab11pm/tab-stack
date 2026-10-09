@@ -56,3 +56,4 @@ flameshot
 grim
 wl-clipboard
 ddcutil
+brightnessctl

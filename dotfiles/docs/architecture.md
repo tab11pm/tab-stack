@@ -29,6 +29,13 @@ workspace strip uses `Quickshell.WindowManager`; its dock also asks custom IPC
 about occlusion/fullscreen and pointer proximity. Replacing that socket with a
 foreign compositor API is not a configuration-only change.
 
+`src/monitors.ts` registers `monitors.get`, `restore`, `apply-layout`, `preview`,
+`confirm` and `cancel` methods (each with the `monitors.` prefix), plus
+`monitors.changed` broadcasts. It owns mode validation and the 15-second rollback
+in the compositor. `Monitors.qml` owns drafts and atomic local profile writes;
+`MonitorSettings.qml` and `MonitorChoice.qml` expose the controls in the system
+panel. `WidgetLayouts.qml` uses the selected primary output for panel/dock/widgets.
+
 The keyboard indicator reads the fork's per-session layout-status JSON file in
 `XDG_RUNTIME_DIR`. The native workspace transition API is another fork dependency.
 See [fork provenance](fork.md) before substituting upstream binaries.

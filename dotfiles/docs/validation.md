@@ -1,5 +1,29 @@
 # Validation record
 
+## 2026-10-10 monitor settings export
+
+The installed monitor feature was exported as selected QML/TypeScript/Python
+source, without the local monitor profile or unrelated desktop changes.
+
+- `check-monitors.mjs`: mocked compositor checks passed for layout/primary changes,
+  invalid modes and geometry, timed rollback, native mismatch rejection,
+  confirmation with a translated origin, disconnected profiles and config reload.
+- `brightness.py --check`: isolated backlight read/write/routing/range checks and
+  external DDC parsing checks passed; no hardware brightness was changed.
+- Qt 6.11.2 `qmllint` on the three monitor components and modified brightness,
+  control centre and widget layout files: no error-level diagnostics. Existing
+  `QProcess::ExitStatus` and Bluetooth `UntypedObjectModel` metadata warnings and
+  an unused import notice remain.
+- `check-install.py`: temporary-home installation/reinstallation passed, including
+  monitor component delivery and preservation of a synthetic `monitors.json`.
+- Publication privacy and Git whitespace checks passed.
+
+The live desktop was not installed over, reloaded or connected to during these
+checks. The module uses output APIs present in the installed runtime; a new build
+against the pinned public compositor revision and native mode switching, hotplug,
+real brightness and rendered panel behavior remain unverified for this export.
+See [monitor settings](monitors.md) for deliberate desktop acceptance checks.
+
 ## 2026-10-09 wallpaper groups
 
 The named static-image groups feature was exported separately from local wallpaper

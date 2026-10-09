@@ -28,6 +28,12 @@ def main():
             {"id": "group_fixture", "name": "Night", "images": ["file:///tmp/wallpaper-groups-fixture/night.png"]}
         ]}
         groups.write_text(json.dumps(group_state) + "\n")
+        monitors = config / "shoji-shell/monitors.json"
+        monitor_state = {"primary": "DP-1", "outputs": [
+            {"name": "DP-1", "x": 0, "y": 0, "scale": 1,
+             "width": 1920, "height": 1080, "refreshRate": 60}
+        ]}
+        monitors.write_text(json.dumps(monitor_state) + "\n")
         user_file = config / "ghostty/user-note"
         user_file.write_text("preserve in backup\n")
         subprocess.run([*args, "--apply"], check=True, capture_output=True)
@@ -35,12 +41,16 @@ def main():
         assert json.loads(groups.read_text()) == group_state, "Reinstall lost wallpaper groups"
         assert config.joinpath("shoji-shell/WallpaperGroups.qml").is_file()
         assert config.joinpath("shoji-shell/WallpaperGroupEditor.qml").is_file()
+        assert json.loads(monitors.read_text()) == monitor_state, "Reinstall lost monitor settings"
+        for name in ("Monitors.qml", "MonitorSettings.qml", "MonitorChoice.qml"):
+            assert config.joinpath("shoji-shell", name).is_file()
+        assert config.joinpath("shojiwm/src/monitors.ts").is_file()
         manifests = list(home.glob(".local/state/tab-stack/backups/*/manifest.json"))
         assert len(manifests) == 2
         backed_up = [Path(e["backup"]) for m in manifests for e in json.loads(m.read_text()) if e["backup"]]
         assert any((p / "user-note").is_file() for p in backed_up)
         assert (home / ".local/bin/codex-resume-ghostty").stat().st_mode & 0o111
-        print("Preview, isolated install, generated paths, runtime link, wallpaper groups and second-install backups: OK")
+        print("Preview, isolated install, generated paths, runtime link, wallpaper groups, monitor settings and second-install backups: OK")
 
 
 if __name__ == "__main__":
