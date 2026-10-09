@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import Quickshell
 
 FocusScope {
@@ -8,7 +9,7 @@ FocusScope {
     required property string outputName
     focus: true
     readonly property real expandedWidth: Math.min(620, width * 0.56)
-    readonly property real cardHeight: Math.min(388, height * 0.40)
+    readonly property real cardHeight: Math.min(388, height * 0.40, Math.max(100, height - layoutHeight - (animatedMode ? 220 : 270)))
     readonly property real layoutHeight: Math.min(220, height * 0.23)
     readonly property real layoutWidth: Math.min(620, width * 0.72)
     readonly property var previewScreens: Quickshell.screens.slice().sort((a, b) => a.x - b.x || a.y - b.y)
@@ -25,7 +26,7 @@ FocusScope {
     readonly property var selectedLive: animatedMode && carousel.currentIndex >= 0
         ? LiveWallpapers.items[carousel.currentIndex] || null : null
     readonly property string selectedWallpaper: !animatedMode && carousel.currentIndex >= 0 && carousel.currentIndex < carousel.count
-        ? Wallpapers.library.get(carousel.currentIndex, "fileUrl").toString() : ""
+        ? (WallpaperGroups.images[carousel.currentIndex] || {}).fileUrl || "" : ""
     readonly property var widgetLabels: ({ limits: "Лимиты AI", sessions: "Сессии", neko: "Котик",
         github: "GitHub", hermes: "Hermes", vast: "Vast.ai", music: "Музыка", profile: "Профиль", home: "Home Zone", "gaming-home": "Home Zone · Gaming" })
     readonly property var widgetIcons: ({ limits: "session-codex", sessions: "keyboard", github: "git-pull-request",
@@ -74,6 +75,7 @@ FocusScope {
         if (animatedMode) chosenLive = chosenWallpaper;
         else chosenStill = chosenWallpaper;
         animatedMode = value;
+        if (value && activeRow === -2) Wallpapers.pickerRow = -1;
         chosenWallpaper = value ? chosenLive : chosenStill;
         selectionError = "";
         selectSaved();
@@ -82,7 +84,12 @@ FocusScope {
     function focusRow(row) { Wallpapers.pickerRow = row; selectionError = ""; forceActiveFocus(); }
     function step(direction) {
         if (Wallpapers.saving) return;
-        if (activeRow === -1) {
+        if (activeRow === -2 && !animatedMode) {
+            if (!WallpaperGroups.ready || WallpaperGroups.saving) return;
+            const options = WallpaperGroups.options;
+            const index = options.findIndex(group => group.id === WallpaperGroups.selected);
+            WallpaperGroups.select(options[Math.max(0, Math.min(options.length - 1, index + direction))].id);
+        } else if (activeRow === -1) {
             setAnimated(direction > 0);
         } else if (activeRow === 1) {
             layouts.currentIndex = Math.max(0, Math.min(layouts.count - 1, layouts.currentIndex + direction));
@@ -95,14 +102,15 @@ FocusScope {
     function chooseWallpaper() {
         if (restoringWallpaper) return;
         chosenWallpaper = animatedMode ? (selectedLive ? selectedLive.path : "")
-            : carousel.currentIndex >= 0 ? Wallpapers.library.get(carousel.currentIndex, "fileUrl").toString() : "";
+            : selectedWallpaper;
         selectionError = "";
     }
     function requestPreviews() {
         Wallpapers.requestPreviews(carousel.currentIndex, Math.ceil(width / (Math.min(136, width * 0.13) + 52) / 2) + 2,
-            animatedMode ? LiveWallpapers.items.map(item => item.preview) : null);
+            animatedMode ? LiveWallpapers.items.map(item => item.preview) : WallpaperGroups.images.map(item => item.fileUrl));
     }
     function applySelected() {
+        if (groupEditor.visible) return;
         if (!canApply) return;
         const selected = WidgetLayouts.layouts[layouts.currentIndex];
         if (!selected) {
@@ -122,6 +130,10 @@ FocusScope {
             Wallpapers.apply(outputName, "", selected.id, { path: selectedLive.path, crop: frame.crop }, frame);
             return;
         }
+        if (!selectedWallpaper) {
+            selectionError = WallpaperGroups.selected ? "Добавь фотографии в эту группу или выбери другую." : "В папке обоев нет изображений.";
+            return;
+        }
         if (selectedWallpaper && selectedWallpaper !== Wallpapers.current(outputName)
                 && (!carousel.currentItem || !carousel.currentItem.loaded)) {
             selectionError = Wallpapers.thumbnailErrors[selectedWallpaper] || (carousel.currentItem && carousel.currentItem.failed)
@@ -132,8 +144,13 @@ FocusScope {
         Wallpapers.apply(outputName, selectedWallpaper, selected.id, null, frame);
     }
     function selectSaved() {
-        if (!Wallpapers.ready || carousel.width <= 0 || !carousel.count) return;
+        if (!Wallpapers.ready || carousel.width <= 0) return;
         restoringWallpaper = true;
+        if (!carousel.count) {
+            carousel.currentIndex = -1;
+            restoringWallpaper = false;
+            return;
+        }
         if (animatedMode) {
             const path = chosenWallpaper || (savedLive ? savedLive.path : "");
             const index = LiveWallpapers.items.findIndex(item => item.path === path);
@@ -143,8 +160,8 @@ FocusScope {
             return;
         }
         const selected = chosenWallpaper || Wallpapers.current(outputName);
-        for (let i = 0; i < Wallpapers.library.count; i++) {
-            if (Wallpapers.library.get(i, "fileUrl").toString() === selected) {
+        for (let i = 0; i < WallpaperGroups.images.length; i++) {
+            if (WallpaperGroups.images[i].fileUrl === selected) {
                 carousel.currentIndex = i;
                 requestPreviews();
                 Qt.callLater(centerWallpaper);
@@ -171,9 +188,11 @@ FocusScope {
     Component.onCompleted: { selectSaved(); Qt.callLater(selectLayout); LiveWallpapers.scan(); forceActiveFocus(); }
     Connections { target: LiveWallpapers; function onItemsChanged() { if (root.animatedMode) root.selectSaved(); } }
     Connections {
-        target: Wallpapers.library
-        function onCountChanged(): void { root.selectSaved(); }
-        function onStatusChanged(): void { root.selectSaved(); }
+        target: WallpaperGroups
+        function onImagesChanged(): void {
+            root.selectionError = "";
+            if (!root.animatedMode) Qt.callLater(root.selectSaved);
+        }
     }
     Connections {
         target: Wallpapers
@@ -181,19 +200,36 @@ FocusScope {
         function onReadyChanged(): void { root.selectSaved(); root.selectLayout(); }
         function onLayoutIdChanged(): void { Qt.callLater(root.selectLayout); }
     }
-    Keys.onEscapePressed: Wallpapers.cancel()
+    Keys.onEscapePressed: event => {
+        if (groupEditor.visible) {
+            if (!WallpaperGroups.saving) groupEditor.close();
+        } else Wallpapers.cancel();
+        event.accepted = true;
+    }
     Keys.onUpPressed: event => {
+        if (groupEditor.visible) { event.accepted = true; return; }
         if (event.modifiers & Qt.ShiftModifier) setCrop(crop.x, crop.y - 0.05, crop.zoom);
-        else focusRow(Math.max(-1, activeRow - 1));
+        else focusRow(Math.max(animatedMode ? -1 : -2, activeRow - 1));
     }
     Keys.onDownPressed: event => {
+        if (groupEditor.visible) { event.accepted = true; return; }
         if (event.modifiers & Qt.ShiftModifier) setCrop(crop.x, crop.y + 0.05, crop.zoom);
         else focusRow(Math.min(1, activeRow + 1));
     }
-    Keys.onTabPressed: focusRow(activeRow === 1 ? -1 : activeRow + 1)
-    Keys.onBacktabPressed: focusRow(activeRow === -1 ? 1 : activeRow - 1)
+    Keys.onTabPressed: if (!groupEditor.visible) focusRow(activeRow === 1 ? (animatedMode ? -1 : -2) : activeRow + 1)
+    Keys.onBacktabPressed: if (!groupEditor.visible) focusRow(activeRow === (animatedMode ? -1 : -2) ? 1 : activeRow - 1)
     Keys.onPressed: event => {
-        if (event.key === Qt.Key_R || event.key === Qt.Key_F5) {
+        if (groupEditor.visible) return;
+        if (!animatedMode && event.key === Qt.Key_G) {
+            focusRow(-2);
+            event.accepted = true;
+        } else if (!animatedMode && event.key === Qt.Key_N && WallpaperGroups.ready && !WallpaperGroups.saving) {
+            groupEditor.edit("");
+            event.accepted = true;
+        } else if (!animatedMode && event.key === Qt.Key_E && WallpaperGroups.selected && !WallpaperGroups.saving) {
+            groupEditor.edit(WallpaperGroups.selected);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_R || event.key === Qt.Key_F5) {
             LiveWallpapers.scan();
             event.accepted = true;
         } else if (event.key === Qt.Key_Plus || event.key === Qt.Key_Equal || event.key === Qt.Key_Minus) {
@@ -205,10 +241,12 @@ FocusScope {
         }
     }
     Keys.onLeftPressed: event => {
+        if (groupEditor.visible) { event.accepted = true; return; }
         if (event.modifiers & Qt.ShiftModifier) setCrop(crop.x - 0.05, crop.y, crop.zoom);
         else step(-1);
     }
     Keys.onRightPressed: event => {
+        if (groupEditor.visible) { event.accepted = true; return; }
         if (event.modifiers & Qt.ShiftModifier) setCrop(crop.x + 0.05, crop.y, crop.zoom);
         else step(1);
     }
@@ -226,15 +264,55 @@ FocusScope {
         }
     }
     MouseArea { anchors.fill: parent; onClicked: Wallpapers.cancel() }
+    WallpaperGroupEditor { id: groupEditor; parent: root }
+    RowLayout {
+        id: groupBar
+        anchors { horizontalCenter: parent.horizontalCenter; bottom: kinds.top; bottomMargin: 10 }
+        width: Math.min(640, root.width - 40)
+        height: 36
+        visible: !root.animatedMode
+        opacity: root.activeRow === -2 ? 1 : 0.78
+        Behavior on opacity { NumberAnimation { duration: 160 } }
+        spacing: 8
+        UiText { text: "Группа"; color: Theme.muted; font.pixelSize: 12 }
+        ComboBox {
+            id: groupChoice
+            Layout.fillWidth: true
+            implicitHeight: 36
+            model: WallpaperGroups.options
+            textRole: "name"; valueRole: "id"
+            currentIndex: WallpaperGroups.options.findIndex(group => group.id === WallpaperGroups.selected)
+            displayText: currentIndex >= 0 ? WallpaperGroups.options[currentIndex].name + " · " + WallpaperGroups.options[currentIndex].count : "Все изображения"
+            enabled: WallpaperGroups.ready && !WallpaperGroups.saving
+            font.family: Theme.font; font.pixelSize: 12
+            palette.text: Theme.ink; palette.buttonText: Theme.ink; palette.window: Theme.raised
+            palette.base: Theme.raised; palette.highlight: Theme.accent; palette.highlightedText: Theme.surface
+            background: Rectangle { color: groupChoice.hovered ? Theme.hover : Theme.raised; radius: 8; border.color: groupChoice.visualFocus ? Theme.accent : "transparent" }
+            Accessible.name: "Группа обоев"
+            onActivated: WallpaperGroups.select(WallpaperGroups.options[currentIndex].id)
+        }
+        ActionButton {
+            text: "Новая группа"; font.pixelSize: 12
+            enabled: WallpaperGroups.ready && !WallpaperGroups.saving
+            onClicked: groupEditor.edit("")
+        }
+        ActionButton {
+            text: "Изменить"; font.pixelSize: 12
+            enabled: WallpaperGroups.ready && !WallpaperGroups.saving && !!WallpaperGroups.selected
+            onClicked: groupEditor.edit(WallpaperGroups.selected)
+        }
+    }
     HoverHandler {
         property var previousPosition: null
         onPointChanged: {
+            if (groupEditor.visible) return;
             const position = point.scenePosition;
             const previous = previousPosition;
             previousPosition = Qt.point(position.x, position.y);
             // Mapping the picker under a stationary cursor must preserve the saved row.
             if (!previous || (previous.x === position.x && previous.y === position.y)) return;
-            for (const [item, row] of [[kinds, -1], [carousel, 0], [layouts, 1]]) {
+            for (const [item, row] of [[groupBar, -2], [kinds, -1], [carousel, 0], [layouts, 1]]) {
+                if (!item.visible) continue;
                 if (item.contains(item.mapFromItem(null, position.x, position.y))) {
                     root.focusRow(row);
                     break;
@@ -321,11 +399,11 @@ FocusScope {
         onCountChanged: Qt.callLater(root.selectSaved)
         onWidthChanged: Qt.callLater(root.selectSaved)
         anchors { left: parent.left; right: parent.right }
-        y: (root.height - height - root.layoutHeight - 32) / 2
+        y: Math.max(root.animatedMode ? 86 : 136, (root.height - height - root.layoutHeight - 32) / 2)
         height: root.cardHeight + 48
         opacity: root.activeRow === 0 ? 1 : 0.68
         Behavior on opacity { NumberAnimation { duration: 160 } }
-        model: root.animatedMode ? LiveWallpapers.items.length : Wallpapers.library.count
+        model: root.animatedMode ? LiveWallpapers.items.length : WallpaperGroups.images.length
         orientation: ListView.Horizontal
         spacing: 52
         clip: true
@@ -354,8 +432,8 @@ FocusScope {
             id: card
             required property int index
             readonly property var entry: root.animatedMode ? LiveWallpapers.items[index] || {} : ({})
-            readonly property string fileUrl: root.animatedMode ? entry.preview || "" : (Wallpapers.library.get(index, "fileUrl") || "").toString()
-            readonly property string fileName: root.animatedMode ? entry.title || "" : Wallpapers.library.get(index, "fileName") || ""
+            readonly property string fileUrl: root.animatedMode ? entry.preview || "" : (WallpaperGroups.images[index] || {}).fileUrl || ""
+            readonly property string fileName: root.animatedMode ? entry.title || "" : (WallpaperGroups.images[index] || {}).fileName || ""
             readonly property bool selected: ListView.isCurrentItem
             readonly property bool loaded: preview.status === Image.Ready
             readonly property bool failed: preview.status === Image.Error
@@ -463,6 +541,24 @@ FocusScope {
                     onClicked: { carousel.currentIndex = card.index; root.chooseWallpaper(); root.focusRow(0); }
                 }
             }
+        }
+    }
+    ColumnLayout {
+        anchors.centerIn: carousel
+        width: Math.min(460, root.width - 40)
+        visible: !root.animatedMode && carousel.count === 0
+        spacing: 12
+        UiText {
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignHCenter
+            text: WallpaperGroups.selected ? "В этой группе пока нет доступных фотографий" : "В папке обоев пока нет фотографий"
+            wrapMode: Text.Wrap
+            color: Theme.muted
+        }
+        RowLayout {
+            Layout.alignment: Qt.AlignHCenter
+            ActionButton { text: "Добавить фотографии"; visible: !!WallpaperGroups.selected; enabled: WallpaperGroups.ready && !WallpaperGroups.saving; onClicked: groupEditor.edit(WallpaperGroups.selected) }
+            ActionButton { text: "Все изображения"; visible: !!WallpaperGroups.selected; enabled: !WallpaperGroups.saving; onClicked: WallpaperGroups.select("") }
         }
     }
     ListView {
@@ -635,7 +731,7 @@ FocusScope {
         width: Math.min(640, root.width - 32)
         horizontalAlignment: Text.AlignHCenter
         wrapMode: Text.Wrap
-        text: Wallpapers.error || root.selectionError
+        text: Wallpapers.error || root.selectionError || (!groupEditor.visible ? WallpaperGroups.error : "")
         visible: text.length > 0
         color: Theme.danger
         Accessible.role: Accessible.AlertMessage

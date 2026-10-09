@@ -1,0 +1,48 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+
+const state = vm.createContext({});
+vm.runInContext(readFileSync(new URL('./WallpaperGroupState.js', import.meta.url), 'utf8')
+    .replace(/^\.pragma library\s*/, ''), state);
+const imageA = "file:///tmp/wallpaper-groups-fixture/ночь%20%231.jpg";
+const imageB = "file:///tmp/wallpaper-groups-fixture/day.png";
+const catalogue = [{ fileUrl: imageA }, { fileUrl: imageB }];
+const original = state.empty();
+let document = state.saveGroup(original, '', ' Ночь ', [imageA, imageA]);
+assert.equal(original.groups.length, 0, 'Editing must not mutate the saved document');
+const night = document.selected;
+assert.equal(document.groups[0].name, 'Ночь');
+assert.equal(document.groups[0].images.length, 1);
+assert.deepEqual(state.filterImages(catalogue, document), [catalogue[0]]);
+document = state.saveGroup(document, '', 'Аниме', [imageA, imageB]);
+const anime = document.selected;
+assert.deepEqual(state.filterImages(catalogue, document), catalogue);
+assert.equal(document.groups[0].images[0], document.groups[1].images[0], 'Photos may belong to several groups');
+document = state.saveGroup(document, night, 'Тёмные', [imageA]);
+assert.equal(document.selected, night);
+assert.equal(document.groups.length, 2);
+assert.throws(() => state.saveGroup(document, '', 'тЁМНЫЕ', []), /уже есть/);
+assert.throws(() => state.saveGroup(document, '', ' ', []), /название/);
+assert.throws(() => state.saveGroup(document, '', 'x'.repeat(65), []), /название/);
+assert.throws(() => state.saveGroup(document, 'group_missing', 'Группа', []), /не существует/);
+assert.throws(() => state.saveGroup(document, '', 'Группа', ['https://example.com/a.jpg']), /фотографий/);
+assert.throws(() => state.selectGroup(document, 'group_missing'), /не существует/);
+assert.throws(() => state.validate({ version: 9, selected: '', groups: [] }), /файл/);
+assert.throws(() => state.validate({ ...document, groups: [document.groups[0], document.groups[0]] }), /группа/);
+const reloaded = state.validate(JSON.parse(JSON.stringify(document)));
+assert.equal(reloaded.selected, night);
+assert.deepEqual(state.filterImages(catalogue, reloaded), [catalogue[0]]);
+assert.equal(state.filterImages([catalogue[1]], reloaded).length, 0, 'Missing images do not appear in the carousel');
+assert.equal(reloaded.groups[0].images[0], imageA, 'Missing photos remain in the saved group');
+const all = state.selectGroup(reloaded, '');
+assert.deepEqual(state.filterImages(catalogue, all), catalogue);
+const removed = state.removeGroup(reloaded, night);
+assert.equal(removed.selected, '');
+assert.equal(removed.groups.length, 1);
+assert.equal(removed.groups[0].id, anime);
+assert.equal(catalogue.length, 2, 'Removing groups must not change the image library');
+const empty = state.saveGroup(removed, '', 'Утро', []);
+assert.equal(state.filterImages(catalogue, empty).length, 0);
+console.log('Wallpaper groups: naming, membership, filtering, persistence and deletion OK');

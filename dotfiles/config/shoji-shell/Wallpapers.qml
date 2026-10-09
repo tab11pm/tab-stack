@@ -21,12 +21,20 @@ Singleton {
     property string pendingOutput: ""
     property string error: ""
     property alias library: library
+    property var imageItems: []
     property var thumbnails: ({})
     property var thumbnailErrors: ({})
     property var checkedThumbnails: ({})
     property var thumbnailQueue: []
     property string thumbnailUrl: ""
     signal acceptRequested()
+
+    function refreshImages() {
+        const items = [];
+        for (let i = 0; i < library.count; i++)
+            items.push({ fileUrl: library.get(i, "fileUrl").toString(), fileName: library.get(i, "fileName") });
+        imageItems = items;
+    }
 
     function current(outputName) { return liveFor(outputName) ? neutral : outputs[outputName] || fallback; }
     function liveLayers(value) {
@@ -223,6 +231,15 @@ Singleton {
         showDirs: false
         showDotAndDotDot: false
         sortField: FolderListModel.Name
+        onCountChanged: Qt.callLater(root.refreshImages)
+        onStatusChanged: Qt.callLater(root.refreshImages)
+    }
+    Connections {
+        target: library
+        function onDataChanged() { Qt.callLater(root.refreshImages); }
+        function onRowsInserted() { Qt.callLater(root.refreshImages); }
+        function onRowsRemoved() { Qt.callLater(root.refreshImages); }
+        function onModelReset() { Qt.callLater(root.refreshImages); }
     }
     FileView {
         id: state
