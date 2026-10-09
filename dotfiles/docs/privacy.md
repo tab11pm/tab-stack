@@ -34,6 +34,8 @@ local CLI server; provider API URLs are public service endpoints without secrets
 titles, account balances and provider output belong to the installing user. The
 wallpaper groups file (`wallpaper-groups.json`) also contains private collection
 names and photo paths; it is excluded from publication and preserved on reinstall.
+The monitor profile (`monitors.json`) contains local output choices and geometry;
+it is also excluded from publication and preserved on reinstall.
 The installer keeps live configuration outside the repository. It backs up replaced
 directories privately and never uploads their contents. Do not publish those backups.
 

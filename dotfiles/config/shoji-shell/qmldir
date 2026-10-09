@@ -60,3 +60,7 @@ HomeZonePreview 1.0 HomeZonePreview.qml
 GamingHomeZone 1.0 GamingHomeZone.qml
 GamingHomeZonePreview 1.0 GamingHomeZonePreview.qml
 GamingProcessList 1.0 GamingProcessList.qml
+
+singleton Monitors 1.0 Monitors.qml
+MonitorSettings 1.0 MonitorSettings.qml
+MonitorChoice 1.0 MonitorChoice.qml
