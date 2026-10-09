@@ -57,6 +57,8 @@ Scope {
             Region { item: sessionsLoader.active && sessionsLoader.enabled ? sessionsLoader : null }
             Region { item: nekoLoader.active && nekoLoader.enabled ? nekoLoader : null }
             Region { item: homeLoader.active && homeLoader.enabled ? homeLoader : null }
+            Region { item: musicLoader.active && musicLoader.enabled && musicLoader.item ? musicLoader.item.controlsItem : null }
+            Region { item: deepseekLoader.active && deepseekLoader.enabled ? deepseekLoader : null }
         }
         WidgetWaveLoader {
             id: homeLoader
@@ -92,9 +94,9 @@ Scope {
             sourceComponent: WeatherWidget {}
         }
         WidgetWaveLoader {
-            id: vastLoader
-            widgetId: "vast"; output: root.output; transition: wallpaperTransition
-            sourceComponent: VastWidget {}
+            id: deepseekLoader
+            widgetId: "deepseek"; output: root.output; transition: wallpaperTransition
+            sourceComponent: DeepSeekWidget {}
         }
         WidgetWaveLoader {
             id: githubLoader
@@ -105,7 +107,7 @@ Scope {
             id: sessionsLoader
             widgetId: "sessions"; output: root.output; transition: wallpaperTransition
             y: placement.vertical === "center"
-                ? (limitsLoader.y + limitsLoader.height + vastLoader.y - height) / 2
+                ? (limitsLoader.y + limitsLoader.height + deepseekLoader.y - height) / 2
                 : WidgetLayouts.verticalPosition(placement, root.output.height, height)
             sourceComponent: SessionResumeWidget {}
         }

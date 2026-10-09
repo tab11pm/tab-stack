@@ -34,6 +34,9 @@ def main():
              "width": 1920, "height": 1080, "refreshRate": 60}
         ]}
         monitors.write_text(json.dumps(monitor_state) + "\n")
+        keyfile = config / "shoji-shell/deepseek-api-key"
+        keyfile.write_text("synthetic-key-fixture\n")
+        keyfile.chmod(0o600)
         user_file = config / "ghostty/user-note"
         user_file.write_text("preserve in backup\n")
         subprocess.run([*args, "--apply"], check=True, capture_output=True)
@@ -45,6 +48,10 @@ def main():
         for name in ("Monitors.qml", "MonitorSettings.qml", "MonitorChoice.qml"):
             assert config.joinpath("shoji-shell", name).is_file()
         assert config.joinpath("shojiwm/src/monitors.ts").is_file()
+        assert keyfile.read_text() == "synthetic-key-fixture\n", "Reinstall lost local DeepSeek key"
+        assert keyfile.stat().st_mode & 0o777 == 0o600
+        for name in ("Power.qml", "BatteryPanel.qml", "MusicSource.js", "DeepSeekWidget.qml", "deepseek-widget.py"):
+            assert config.joinpath("shoji-shell", name).is_file()
         manifests = list(home.glob(".local/state/tab-stack/backups/*/manifest.json"))
         assert len(manifests) == 2
         backed_up = [Path(e["backup"]) for m in manifests for e in json.loads(m.read_text()) if e["backup"]]

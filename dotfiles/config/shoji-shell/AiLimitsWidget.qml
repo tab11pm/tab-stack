@@ -12,14 +12,10 @@ Item {
     property var serviceStatuses: [
         { id: "openai", name: "ChatGPT", state: "loading", url: "https://status.openai.com/" },
         { id: "claude", name: "Claude", state: "loading", url: "https://status.claude.com/" },
-        { id: "deepseek", name: "DeepSeek", state: "loading", url: "https://status.deepseek.com/" },
-        { id: "kimi", name: "Kimi", state: "loading", url: "https://status.moonshot.cn/" },
-        { id: "grok", name: "Grok", state: "loading", url: "https://status.x.ai/" }
+        { id: "deepseek", name: "DeepSeek", state: "loading", url: "https://status.deepseek.com/" }
     ]
     property var providers: [
-        { id: "codex", name: "ChatGPT", source: "Codex", state: "loading", windows: [] },
-        { id: "grok", name: "Grok", source: "Build", state: "loading", windows: [] },
-        { id: "kimi", name: "Kimi", source: "Code", state: "loading", windows: [] }
+        { id: "codex", name: "ChatGPT", source: "Codex", state: "loading", windows: [] }
     ]
     implicitWidth: 286
     implicitHeight: content.implicitHeight + 40
@@ -29,7 +25,7 @@ Item {
     SystemClock { id: clock; precision: SystemClock.Minutes }
 
     function updateProvider(message) {
-        if (!message || !["codex", "grok", "kimi"].includes(message.id) || !Array.isArray(message.windows)) return;
+        if (!message || !root.providers.some(provider => provider.id === message.id) || !Array.isArray(message.windows)) return;
         root.receivedProviders = root.receivedProviders.concat([message.id]);
         root.providers = root.providers.map(provider => {
             if (provider.id !== message.id) return provider;
@@ -42,7 +38,7 @@ Item {
         id: collector
         running: true
         onStarted: root.receivedProviders = []
-        command: ["node", Qt.resolvedUrl("ai-limits.mjs").toString().replace("file://", "")]
+        command: ["node", Qt.resolvedUrl("ai-limits.mjs").toString().replace("file://", ""), "--providers=codex"]
         stdout: SplitParser {
             onRead: data => {
                 try { root.updateProvider(JSON.parse(data)); }
@@ -85,7 +81,7 @@ Item {
         id: statusCollector
         running: true
         onStarted: root.receivedStatuses = []
-        command: ["python3", Qt.resolvedUrl("ai-status.py").toString().replace("file://", "")]
+        command: ["python3", Qt.resolvedUrl("ai-status.py").toString().replace("file://", ""), "--providers=openai,claude,deepseek"]
         stdout: SplitParser {
             onRead: data => {
                 try { root.updateStatus(JSON.parse(data)); }

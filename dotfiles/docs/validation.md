@@ -1,5 +1,34 @@
 # Validation record
 
+## 2026-10-10 widget export
+
+Selected installed widget sources were ported onto main after the monitor PR.
+No account credentials, session databases, music catalog or balance ledger were
+copied. DeepSeek received the publication-required opt-in gate; the default key
+file is excluded from publication and preserved during reinstall.
+
+- `check-music-source.mjs`: PID preference, ambiguous capture/player rejection,
+  paused-player retention and browser eligibility passed with fake MPRIS players.
+- Five `check-deepseek.py` tests: disabled credential/network guard, currency and
+  numeric validation, estimated spend/top-ups, cache/key isolation/private file
+  permissions and fixed error messages passed using synthetic data.
+- Session self-check: OpenCode read-only fixture queries, exclusion of archived/
+  child sessions, command quoting, recency and widget archive behavior passed.
+- Quota/status parser self-checks passed without authenticated CLIs or network.
+- Temporary-home install/reinstall preserved integration settings, monitor and
+  wallpaper state, and a synthetic private DeepSeek key with mode 600.
+- Qt 6.11.2 QML lint reported no error-level diagnostics. Quickshell metadata,
+  dynamic loader properties, delegate qualification and existing session gesture
+  layout warnings remain; this is not a warning-free lint result.
+- A synthetic offscreen DeepSeek preview was rendered and inspected for available,
+  missing-key and authentication-error states with the collector disabled.
+- Privacy scan and Git whitespace checks passed.
+
+No live shell restart, account request, playback command or power profile change
+was performed for this export. Source checks do not establish behavior on another
+machine's players, battery hardware or CLI database versions. The user's installed
+feature supplies working-desktop provenance.
+
 ## 2026-10-10 monitor settings export
 
 The installed monitor feature was exported as selected QML/TypeScript/Python

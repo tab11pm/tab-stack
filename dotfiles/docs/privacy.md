@@ -31,7 +31,7 @@ local CLI server; provider API URLs are public service endpoints without secrets
 ## What becomes private after installation
 
 `integrations.env`, selected wallpaper paths, dock pins, widget caches, session
-titles, account balances and provider output belong to the installing user. The
+titles, the local `deepseek-api-key` file and balance ledger, account balances and provider output belong to the installing user. The
 wallpaper groups file (`wallpaper-groups.json`) also contains private collection
 names and photo paths; it is excluded from publication and preserved on reinstall.
 The monitor profile (`monitors.json`) contains local output choices and geometry;

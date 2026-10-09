@@ -40,6 +40,10 @@ screen shader selection, snow/aquarium effects, clock mascots and MateEngine IPC
 It preserves the working desktop's source while replacing personal paths and
 defaults. The sanitized update has not had a new build or graphical check.
 
+The [widget update](docs/widgets.md) adds browser music transport/seek controls,
+battery and power profiles, DeepSeek API balance tiles in place of Vast.ai, and
+OpenCode sessions in place of Grok/Kimi. Account integrations remain opt-in.
+
 ## Categories
 
 | Directory | Contents |

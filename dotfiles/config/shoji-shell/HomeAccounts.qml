@@ -11,15 +11,13 @@ Item {
     property var github: ({})
     property string githubError: ""
     property var account: ({ state: "loading" })
-    property var instances: ({ state: "loading" })
     property var providers: [
-        { id: "codex", name: "ChatGPT", state: "loading", windows: [] },
-        { id: "grok", name: "Grok", state: "loading", windows: [] },
-        { id: "kimi", name: "Kimi", state: "loading", windows: [] }
+        { id: "codex", name: "ChatGPT", state: "loading", windows: [] }
     ]
     SystemClock { id: clock; precision: SystemClock.Minutes }
     readonly property bool githubStale: !!githubError || !!github.fetchedAt && clock.date.getTime() - github.fetchedAt > 300000
-    readonly property bool vastStale: [account, instances].some(v => v.state === "unavailable" || !!v.fetchedAt && clock.date.getTime() - v.fetchedAt > 120000)
+    readonly property bool deepseekStale: account.state !== "available" || !!account.fetchedAt && clock.date.getTime() - account.fetchedAt > 120000
+    function money(value) { return typeof value === "number" && isFinite(value) ? (account.currency === "CNY" ? "¥" : "$") + value.toFixed(2) : "—"; }
     function number(value) { return typeof value === "number" && isFinite(value) ? String(value) : "—"; }
     function status(provider) {
         if (provider.state === "auth") return "Нужен вход";
@@ -50,38 +48,35 @@ Item {
     }
     Timer { interval: 120000; running: Settings.enabled("github"); repeat: true; onTriggered: { if (!gh.running) gh.running = true; } }
     Process {
-        id: vast
-        property var received: []
-        running: Settings.enabled("vast")
-        command: ["python3", decodeURIComponent(Qt.resolvedUrl("vast-widget.py").toString().replace("file://", "")), "status"]
-        onStarted: received = []
+        id: deepseek
+        property bool received: false
+        running: Settings.enabled("deepseek")
+        command: ["python3", decodeURIComponent(Qt.resolvedUrl("deepseek-widget.py").toString().replace("file://", ""))]
+        onStarted: received = false
         stdout: SplitParser {
             onRead: data => {
                 try {
                     const value = JSON.parse(data);
-                    if (!["account", "instances"].includes(value.kind)) return;
-                    root[value.kind] = value.state === "available" ? value
-                        : Object.assign({}, root[value.kind], { state: "unavailable" });
-                    vast.received = vast.received.concat([value.kind]);
-                } catch (error) { console.warn("Invalid Home Zone Vast response"); }
+                    if (value.state === "available") root.account = value;
+                    else if (["missing", "auth"].includes(value.state)) root.account = value;
+                    else root.account = Object.assign({}, root.account, value);
+                    deepseek.received = true;
+                } catch (error) { console.warn("Invalid DeepSeek response"); }
             }
         }
-        onExited: {
-            for (const kind of ["account", "instances"])
-                if (!received.includes(kind)) root[kind] = Object.assign({}, root[kind], { state: "unavailable" });
-        }
+        onExited: { if (!received) root.account = Object.assign({}, root.account, { state: "unavailable", error: "DeepSeek недоступен" }); }
     }
     Process {
         id: limits
         property var received: []
         running: Settings.enabled("limits")
-        command: ["node", decodeURIComponent(Qt.resolvedUrl("ai-limits.mjs").toString().replace("file://", ""))]
+        command: ["node", decodeURIComponent(Qt.resolvedUrl("ai-limits.mjs").toString().replace("file://", "")), "--providers=codex"]
         onStarted: received = []
         stdout: SplitParser {
             onRead: data => {
                 try {
                     const value = JSON.parse(data);
-                    if (!["codex", "grok", "kimi"].includes(value.id) || !Array.isArray(value.windows)) return;
+                    if (!root.providers.some(provider => provider.id === value.id) || !Array.isArray(value.windows)) return;
                     limits.received = limits.received.concat([value.id]);
                     root.providers = root.providers.map(provider => provider.id !== value.id ? provider
                         : value.state !== "available" && provider.windows.length
@@ -97,12 +92,12 @@ Item {
     Timer {
         interval: 60000; running: true; repeat: true
         onTriggered: {
-            if (Settings.enabled("vast") && !vast.running) vast.running = true;
+            if (Settings.enabled("deepseek") && !deepseek.running) deepseek.running = true;
             if (Settings.enabled("limits") && !limits.running) limits.running = true;
         }
     }
     readonly property color githubSurface: "#d8cdea"
-    readonly property color vastSurface: "#efd0c0"
+    readonly property color deepseekSurface: "#efd0c0"
     readonly property var quotaSurfaces: ["#c7e0d7", "#e6cddd", "#cbdcf0"]
     readonly property color tileInk: "#302b3b"
 
@@ -112,12 +107,16 @@ Item {
         required property string value
         required property string symbol
         required property string target
+        property string label: ""
         property bool stale: false
         property string error: ""
         hoverEnabled: true
         padding: 12
         Accessible.name: caption + ": " + value + (stale ? ", данные устарели" : "")
         Accessible.description: error
+        ToolTip.visible: hovered
+        ToolTip.text: caption + "\n" + error
+        ToolTip.delay: 500
         onClicked: Qt.openUrlExternally(target)
         background: Rectangle {
             radius: 16
@@ -128,11 +127,15 @@ Item {
         contentItem: Item {
             PanelIcon { y: 14; width: 21; height: 21; name: counter.symbol; tint: root.tileInk }
             UiText {
-                x: 29; width: parent.width - 29; height: parent.height
+                x: 29; width: parent.width - 29; height: counter.label ? parent.height - 14 : parent.height
                 text: counter.value; color: root.tileInk
                 font.pixelSize: 30; font.weight: Font.Bold
                 fontSizeMode: Text.Fit; minimumPixelSize: 15
                 verticalAlignment: Text.AlignVCenter
+            }
+            UiText {
+                anchors { left: parent.left; bottom: parent.bottom }
+                visible: !!counter.label; text: counter.label; color: root.tileInk; font.pixelSize: 10
             }
             UiText {
                 anchors { right: parent.right; top: parent.top }
@@ -166,27 +169,30 @@ Item {
         }
     }
     WidgetSurface {
-        id: vastTile
+        id: deepseekTile
         x: githubTile.width + 12; y: 8; width: githubTile.width; height: 84
-        radius: 22; color: root.vastSurface; border.width: 0
+        radius: 22; color: root.deepseekSurface; border.width: 0
         layer.enabled: true
         layer.effect: MultiEffect {
             shadowEnabled: true; shadowColor: "#30243e"; shadowOpacity: 0.28
             shadowVerticalOffset: 4; shadowBlur: 0.8; blurMax: 12
         }
         Counter {
-            x: 4; y: 4; width: (vastTile.width - 8) * 0.40; height: 76
-            caption: "Vast.ai · инстансы"; symbol: "cloud"
-            value: root.instances.fetchedAt ? root.number(root.instances.total) : "—"
-            target: "https://cloud.vast.ai/instances/"; stale: root.vastStale
+            x: 4; y: 4; width: (deepseekTile.width - 8) / 2; height: 76
+            caption: "DeepSeek · расход ≈"; label: "DeepSeek · расход ≈"; symbol: "cloud"
+            value: typeof root.account.spent === "number" ? "≈" + root.money(root.account.spent) : "—"
+            target: "https://platform.deepseek.com/usage"; stale: root.deepseekStale
+            error: root.account.error || ("Оценка по снижению баланса с " + Qt.formatDateTime(new Date(root.account.since), "dd.MM HH:mm") + ". Пополнения между проверками могут скрыть расход; история — в кабинете DeepSeek.")
         }
         Counter {
-            x: 4 + (vastTile.width - 8) * 0.40; y: 4; width: (vastTile.width - 8) * 0.60; height: 76
-            caption: "Vast.ai · баланс"; symbol: "home-wallet"
-            value: typeof root.account.credit === "number" && isFinite(root.account.credit) ? "$" + root.account.credit.toFixed(2) : "—"
-            target: "https://cloud.vast.ai/"; stale: root.vastStale
+            x: deepseekTile.width / 2; y: 4; width: (deepseekTile.width - 8) / 2; height: 76
+            caption: "DeepSeek · баланс"; label: root.account.state === "missing" ? "Нужен ключ API" : "Баланс API"; symbol: "home-wallet"
+            value: root.money(root.account.credit)
+            target: "https://platform.deepseek.com/"; stale: root.deepseekStale
+            error: root.account.error || "Баланс DeepSeek API"
         }
     }
+
     Row {
         x: 0; y: 104; width: root.width; spacing: 10
         Repeater {

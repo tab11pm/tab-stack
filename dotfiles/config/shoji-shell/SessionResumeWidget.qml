@@ -33,7 +33,7 @@ Item {
             onRead: data => {
                 try {
                     const value = JSON.parse(data);
-                    for (const id of ["codex", "kimi", "grok"])
+                    for (const id of ["codex", "opencode"])
                         if (!value[id] || !Array.isArray(value[id].sessions)) throw new Error("Invalid sessions");
                     if (!archiver.running && !root.refreshPending && !root.gestureActive) root.snapshot = value;
                     root.loadError = "";
@@ -101,7 +101,7 @@ Item {
             Layout.fillWidth: true
             spacing: 8
             Repeater {
-                model: ["codex", "kimi", "grok"]
+                model: ["codex", "opencode"]
                 delegate: Item {
                     id: tab
                     required property string modelData
@@ -109,7 +109,7 @@ Item {
                     implicitHeight: 40
                     readonly property bool selected: root.selected === modelData
                     Accessible.role: Accessible.Button
-                    Accessible.name: modelData === "codex" ? "Codex" : modelData === "kimi" ? "Kimi" : "Grok"
+                    Accessible.name: modelData === "codex" ? "Codex" : "OpenCode"
                     Accessible.checkable: true
                     Accessible.checked: selected
                     Accessible.onPressAction: root.selected = tab.modelData

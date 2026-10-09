@@ -153,7 +153,8 @@ if __name__ == "__main__":
     if "--self-check" in sys.argv:
         self_check()
     else:
+        selected = next((arg.split("=", 1)[1].split(",") for arg in sys.argv if arg.startswith("--providers=")), SOURCES)
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as pool:
-            pending = [pool.submit(collect, provider, url) for provider, url in SOURCES.items()]
+            pending = [pool.submit(collect, provider, url) for provider, url in SOURCES.items() if provider in selected]
             for future in concurrent.futures.as_completed(pending):
                 print(json.dumps(future.result(), ensure_ascii=False), flush=True)

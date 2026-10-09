@@ -28,9 +28,9 @@ FocusScope {
     readonly property string selectedWallpaper: !animatedMode && carousel.currentIndex >= 0 && carousel.currentIndex < carousel.count
         ? (WallpaperGroups.images[carousel.currentIndex] || {}).fileUrl || "" : ""
     readonly property var widgetLabels: ({ limits: "Лимиты AI", sessions: "Сессии", neko: "Котик",
-        github: "GitHub", hermes: "Hermes", vast: "Vast.ai", music: "Музыка", profile: "Профиль", home: "Home Zone", "gaming-home": "Home Zone · Gaming" })
+        github: "GitHub", hermes: "Hermes", deepseek: "DeepSeek API", music: "Музыка", profile: "Профиль", home: "Home Zone", "gaming-home": "Home Zone · Gaming" })
     readonly property var widgetIcons: ({ limits: "session-codex", sessions: "keyboard", github: "git-pull-request",
-        hermes: "message-circle", vast: "cloud", music: "headphones", profile: "profile" })
+        hermes: "message-circle", deepseek: "cloud", music: "headphones", profile: "profile" })
     readonly property int activeRow: Wallpapers.pickerRow
     property string chosenWallpaper: ""
     property string chosenStill: ""

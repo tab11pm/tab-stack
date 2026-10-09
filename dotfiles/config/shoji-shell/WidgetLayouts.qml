@@ -26,7 +26,7 @@ Singleton {
             github: { output: "primary", horizontal: "right", vertical: "top", x: 16, y: 68 },
             profile: { output: "primary", horizontal: "right", vertical: "center", x: 16, y: 0 },
             hermes: { output: "primary", horizontal: "center", vertical: "top", x: 0, y: 68 },
-            vast: { output: "primary", horizontal: "left", vertical: "bottom", x: 16, y: 16 },
+            deepseek: { output: "primary", horizontal: "left", vertical: "bottom", x: 16, y: 16 },
             music: { output: "primary", horizontal: "right", vertical: "bottom", x: 16, y: 16 }
         } },
         { id: "bottom-hud", name: "Hermes снизу", widgets: {

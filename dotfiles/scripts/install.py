@@ -71,14 +71,14 @@ def main():
         dst.parent.mkdir(parents=True, exist_ok=True)
         try:
             if src.is_dir():
-                shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "node_modules"))
+                shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "deepseek-api-key", "node_modules"))
             else:
                 shutil.copy2(src, dst)
             if dst == config / "shojiwm":
                 dst.joinpath("node_modules").mkdir()
                 dst.joinpath("node_modules/shoji_wm").symlink_to("/usr/lib/shojiwm/packages/shoji_wm", target_is_directory=True)
             if dst == config / "shoji-shell" and previous.is_dir():
-                for name in ("integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json"):
+                for name in ("integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "deepseek-api-key"):
                     old = previous / name
                     if old.is_file() and not old.is_symlink():
                         shutil.copy2(old, dst / name)

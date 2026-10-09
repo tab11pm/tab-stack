@@ -58,8 +58,8 @@ Singleton {
 
     Connections {
         target: root.player
-        function onTrackChanged(): void { root.position = root.player.positionSupported ? root.player.position : 0; }
-        function onPositionChanged(): void { root.position = root.player.positionSupported ? root.player.position : 0; }
+        function onTrackChanged(): void { root.position = root.usable && root.player.positionSupported ? root.player.position : 0; }
+        function onPositionChanged(): void { root.position = root.usable && root.player.positionSupported ? root.player.position : 0; }
     }
 
     function toggle() {
