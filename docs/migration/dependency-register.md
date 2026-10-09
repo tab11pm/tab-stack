@@ -136,3 +136,144 @@ Package metadata подтверждена запросами к локально
 Проверено 2026-10-10: [Quickshell в Arch extra](https://archlinux.org/packages/extra/x86_64/quickshell/) и [SDDM](https://archlinux.org/packages/extra/x86_64/sddm/files/) доступны независимо от Omarchy. Онлайн-каталог Quickshell показывает 0.3.2-1, установленная версия и локальная sync DB — 0.3.1-1; совместимость обновления ещё не проверена.
 
 [ArchWiki: Limine](https://wiki.archlinux.org/title/Limine) описывает limine-mkinitcpio-hook и limine-snapper-sync как AUR-компоненты. Это возможные источники, не подтверждение равенства рецептов установленным Omarchy-сборкам и не разрешение их заменить.
+
+## Вход и жизненный цикл
+
+### login.greeter
+
+- **Функция:** Экран входа
+- **Компонент/владелец:** SDDM; /etc/sddm.conf.d/10-wayland.conf; theme overrides
+- **Запуск/область:** display-manager.service → sddm.service
+- **Зависимость:** общая Arch; Hyprland CLI/протокол
+- **Доказательство:** DisplayServer=wayland, CompositorCommand=start-hyprland -- --config /usr/share/sddm/hyprland.lua. 10-theme.conf и 99-omarchy-login.conf задают omarchy, zz-user-switch-theme.conf задаёт elarun. Несколько overrides; на экране фактическая тема не проверена.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** заменить
+- **Этап:** 1
+- **Предусловия:** Проверенный TTY/rescue и backup всех SDDM конфигураций
+- **Проверка:** Холодная загрузка и greeter без Hyprland; тема выбирается по действующим overrides
+- **Откат:** Восстановить SDDM файлы и оставленный бинарник Hyprland
+
+### login.session
+
+- **Функция:** Выбор desktop сессии
+- **Компонент/владелец:** /usr/share/wayland-sessions/shojiwm.desktop, владелец kisa-shojiwm
+- **Запуск/область:** SDDM user session; Exec=/usr/bin/shoji_wm --tty
+- **Зависимость:** локальная tab-stack; Omarchy CLI/IPC
+- **Доказательство:** ShojiWM session entry существует. autologin.conf указывает Session=omarchy.desktop; этот entry не найден в просмотренном /usr/share/wayland-sessions. Нельзя заключать, что текущий вход использует autologin: фактическая сессия и другие SessionDir ещё не подтверждены.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** заменить
+- **Этап:** 1
+- **Предусловия:** Разобрать выбор session/автологин без изменения других пользователей
+- **Проверка:** Вход и повторный вход в нужную сессию после reboot
+- **Откат:** Восстановить session entry и SDDM backup, запустить ShojiWM из проверенного TTY
+
+### session.environment
+
+- **Функция:** Окружение служб и desktop
+- **Компонент/владелец:** shojiwm/scripts/session-portals
+- **Запуск/область:** COMPOSITOR.process.once once-per-session
+- **Зависимость:** локальная tab-stack; общая Arch
+- **Доказательство:** Окружение агента: XDG_CURRENT_DESKTOP=ShojiWM, XDG_SESSION_TYPE=wayland. Скрипт импортирует WAYLAND_DISPLAY, DISPLAY, XDG_CURRENT_DESKTOP, XDG_SESSION_TYPE, QT_QPA_PLATFORM и перезапускает portal services. OMARCHY_PATH не очищается скриптом. Manager environment не прочитан из-за доступа к bus.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** исследовать до решения
+- **Этап:** 1
+- **Предусловия:** Получить выбранные свойства user manager и проверить session targets
+- **Проверка:** Portal/launcher стартуют с актуальным display; после logout нет stale environment
+- **Откат:** Восстановить session-portals и исходные unit/config files
+
+### session.lifecycle
+
+- **Функция:** Запуск и завершение
+- **Компонент/владелец:** ShojiWM direct session; scripts/logout; HomeSystemCard.qml
+- **Запуск/область:** WM и кнопка пользовательской оболочки
+- **Зависимость:** локальная tab-stack; общая Arch
+- **Доказательство:** Session entry запускает compositor напрямую без UWSM. scripts/logout обращается к native abstract socket, а установленный HomeSystemCard использует loginctl terminate-session по XDG_SESSION_ID. Разные пути; ни один logout не исполнялся.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** исследовать до решения
+- **Этап:** 1
+- **Предусловия:** Определить canonical shutdown и жизненный цикл graphical-session.target
+- **Проверка:** Повторный вход не оставляет старых процессов; завершение не затрагивает другую сессию
+- **Откат:** Вернуть старые session scripts и маршруты кнопки
+
+### session.panel
+
+- **Функция:** Панель и её восстановление
+- **Компонент/владелец:** COMPOSITOR.process.service dock; shojiwm/scripts/start-shell
+- **Запуск/область:** ShojiWM supervisor
+- **Зависимость:** локальная tab-stack
+- **Доказательство:** restart=on-failure, QS_DISABLE_CRASH_HANDLER=1; start-shell вызывает quickshell --no-duplicate --path ~/.config/shoji-shell. Код source local integrations.env не читался и не исполнялся. Штатный omarchy restart shell обращается к другой shell и Hyprland.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** сохранить
+- **Этап:** 1
+- **Предусловия:** Сохранить локальные integrations и исключить второй supervisor
+- **Проверка:** Сбой панели восстанавливается; locker переживает reload
+- **Откат:** Восстановить index.tsx/start-shell из component backup
+
+### session.launcher
+
+- **Функция:** Launcher и search backend
+- **Компонент/владелец:** ~/.local/bin/walker-shoji; ~/.config/systemd/user/elephant.service
+- **Запуск/область:** launcher script → systemctl --user start elephant.service
+- **Зависимость:** локальная tab-stack; общая Arch
+- **Доказательство:** Elephant unit ExecStart=/usr/bin/elephant, Restart=on-failure; Installed launcher starts unit then execs walker-shoji. Unit существует, enabled/active manager state недоступен.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** сохранить
+- **Этап:** 1
+- **Предусловия:** Согласовать user unit и PATH независимо от Omarchy
+- **Проверка:** Launcher открывает приложения и повторно стартует backend при необходимости
+- **Откат:** Вернуть launcher/unit files и локальный Walker binary
+
+### session.agents
+
+- **Функция:** Autostart и пользовательские targets
+- **Компонент/владелец:** polkit KDE explicit WM startup; Omarchy user unit symlinks; GNOME Keyring socket
+- **Запуск/область:** WM и systemd user
+- **Зависимость:** общая Arch; Omarchy CLI/IPC
+- **Доказательство:** В graphical-session.target.wants есть ссылки на omarchy-sleep-lock, migrate-notify, fcitx5, crash-watch; pre.target.wants включает recover-internal-monitor. PipeWire sockets и gnome-keyring socket в /etc/systemd/user; pipewire-session-manager alias указывает wireplumber. KDE polkit autostart ограничен KDE, WM запускает его явно. Enabled links не доказывают active targets.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** заменить
+- **Этап:** 1
+- **Предусловия:** Разделить полезные службы и Omarchy wrappers; учесть aliases/drop-ins
+- **Проверка:** Ровно один agent каждого назначения и корректные start/stop сессии
+- **Откат:** Восстановить unit links/configs, не удалять keyring data
+
+### portals.routing
+
+- **Функция:** File picker и screen capture backend
+- **Компонент/владелец:** GTK/WLR и ShojiWM portal из kisa-shojiwm
+- **Запуск/область:** D-Bus activation; graphical-session.target
+- **Зависимость:** общая Arch; локальная tab-stack
+- **Доказательство:** shojiwm-portals.conf: default=gtk, ScreenCast=shojiwm, Screenshot=wlr. shojiwm.portal объявляет только ScreenCast, UseIn=ShojiWM. /usr/bin/xdg-desktop-portal-shojiwm и unit принадлежат kisa-shojiwm. Отсутствие отдельного пакета не означает отсутствие portal.
+- **Статус:** подтверждено конфигурацией
+- **Ограничение:** Runtime state не подтверждён; D-Bus и процессы host недоступны из среды аудита.
+- **Решение:** сохранить
+- **Этап:** 4
+- **Предусловия:** Проверить D-Bus активацию и runtime discovery в новой учётной записи
+- **Проверка:** File picker, screenshot и ScreenCast проверяются приложениями
+- **Откат:** Вернуть portal routing и сохранить compositor package
+
+
+## Ограничения доступа и минимальные проверки
+
+User и system bus: `Operation not permitted`; ActiveState/UnitFileState не получены. Видимость процессов sandbox не является перечнем host-процессов. Чтение /boot ограничено permissions; live lock/sleep/logout не выполнялись.
+
+Команды для обычного пользовательского терминала, только чтение:
+
+```bash
+systemctl --user show elephant.service xdg-desktop-portal.service xdg-desktop-portal-shojiwm.service omarchy-sleep-lock.service -p FragmentPath -p DropInPaths -p UnitFileState -p ActiveState -p SubState
+systemctl show sddm.service -p FragmentPath -p DropInPaths -p UnitFileState -p ActiveState -p SubState
+systemctl --user show graphical-session.target graphical-session-pre.target -p ActiveState -p SubState
+systemctl --user show-environment | rg '^(WAYLAND_DISPLAY|DISPLAY|XDG_CURRENT_DESKTOP|XDG_SESSION_TYPE|OMARCHY_PATH)='
+ps -eo comm | rg '^(shoji_wm|quickshell|Hyprland|elephant|nm-applet|gnome-keyring-d|polkit-kde-auth)'
+```
+
+Из результатов перед публикацией удаляются персональные пути. Выбранное окружение и имена процессов не заменяют проверку ownership конкретной сессии. Для /boot и реальных snapshots требуется отдельная минимальная проверка в доступном пользователю окружении; не снимать ограничения массовым privileged dump.
+
+Порядок конфигураций SDDM сверялся с [sddm.conf(5)](https://man.archlinux.org/man/sddm.conf.5.en): системные defaults, local directory, затем /etc/sddm.conf. Не проверено, какие значения использует уже запущенный процесс. Дата проверки источника: 2026-10-10.
