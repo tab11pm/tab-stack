@@ -6,12 +6,14 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Widgets
 import Quickshell.Services.Mpris
+import "MusicSource.js" as MusicSource
 
 Item {
     id: root
     property bool compact: false
+    readonly property alias controlsItem: transport
     implicitWidth: 286
-    implicitHeight: compact ? 206 : header.implicitHeight + 10 + spectrumSurface.height
+    implicitHeight: compact ? 206 : header.implicitHeight + 20 + transport.implicitHeight + spectrumSurface.height
     width: implicitWidth
     height: implicitHeight
 
@@ -22,17 +24,30 @@ Item {
         if (["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"].includes(host)) return "YouTube";
         return host;
     }
-    readonly property var player: {
-        if (!spectrumAvailable || capturePid <= 1 || ambiguousAudio) return null;
-        const candidates = Mpris.players.values.filter(p => p.isPlaying
-            && Number((p.metadata || {})["kde:pid"] || 0) === capturePid
-            && sourceName((p.metadata || {})["xesam:url"]));
-        return candidates.length === 1 ? candidates[0] : null;
+    property string selectedPlayerName: ""
+    readonly property var player: MusicSource.selectPlayer(Mpris.players.values, capturePid, mateEngine, ambiguousAudio, selectedPlayerName)
+    onPlayerChanged: {
+        Qt.callLater(() => { if (root.player) root.selectedPlayerName = root.player.dbusName; });
+        updatePosition();
     }
-    readonly property string source: player ? sourceName(player.metadata["xesam:url"])
+    readonly property string source: player ? sourceName(player.metadata["xesam:url"]) || player.identity
         : playing && mateEngine ? "MateEngine" : ""
-    readonly property bool playing: captureWanted && spectrumAvailable && capturePid > 1 && !ambiguousAudio
+    readonly property bool playing: player ? player.isPlaying : captureWanted && spectrumAvailable && capturePid > 1 && !ambiguousAudio
         && (!mateEngine || mateTrack.playing === true || rawEnergy > 0.08)
+    property real position: 0
+    readonly property real length: player && player.lengthSupported ? player.length : 0
+    function updatePosition() { position = player && player.positionSupported ? player.position : 0; }
+    function seek(fraction) {
+        if (!player || !player.canSeek || !player.positionSupported || length <= 0) return;
+        player.position = Math.max(0, Math.min(1, fraction)) * length;
+        updatePosition();
+    }
+    Connections {
+        target: root.player
+        function onTrackChanged() { root.updatePosition(); }
+        function onPositionChanged() { root.updatePosition(); }
+    }
+    Timer { interval: 1000; repeat: true; running: root.visible && root.player !== null && root.playing; triggeredOnStart: true; onTriggered: root.updatePosition() }
     property int capturePid: 0
     property string captureSource: ""
     readonly property bool mateEngine: captureSource === "mateengine"
@@ -229,7 +244,7 @@ Item {
             UiText {
                 width: parent.width; text: root.title
                 font.pixelSize: 17; font.weight: Font.Bold; color: "white"
-                maximumLineCount: 2; wrapMode: Text.Wrap
+                maximumLineCount: 1
                 Accessible.name: text
             }
             UiText { width: parent.width; text: root.artist; font.pixelSize: 11; color: "#f2f2f2" }
@@ -242,7 +257,7 @@ Item {
         anchors.leftMargin: root.compact ? 14 : 0
         anchors.rightMargin: root.compact ? 14 : 0
         anchors.bottomMargin: root.compact ? 12 : 0
-        height: root.compact ? 46 : 44
+        height: root.compact ? 18 : 44
         Rectangle {
             visible: !root.compact
             anchors.fill: parent
@@ -294,6 +309,52 @@ Item {
                     }
                 }
             }
+        }
+    }
+    ColumnLayout {
+        id: transport
+        parent: root.compact ? homeCard : root
+        anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+        anchors.leftMargin: root.compact ? 14 : 0
+        anchors.rightMargin: root.compact ? 14 : 0
+        anchors.bottomMargin: root.compact ? 36 : 54
+        spacing: 4
+        RowLayout {
+            Layout.fillWidth: true; spacing: 6
+            Item { Layout.fillWidth: true }
+            ActionButton {
+                icon.source: Qt.resolvedUrl("icons/previous.svg"); hint: "Предыдущий трек"
+                implicitWidth: 32; implicitHeight: 32; padding: 7
+                enabled: root.player !== null && root.player.canGoPrevious
+                onClicked: { if (root.player && root.player.canGoPrevious) root.player.previous(); }
+            }
+            ActionButton {
+                icon.source: Qt.resolvedUrl(root.playing ? "icons/pause.svg" : "icons/play.svg")
+                hint: root.player ? (root.playing ? "Пауза" : "Продолжить воспроизведение") : "Браузер не передаёт управление музыкой"
+                implicitWidth: 36; implicitHeight: 32; padding: 7; highlighted: true
+                enabled: root.player !== null && root.player.canTogglePlaying
+                onClicked: { if (root.player && root.player.canTogglePlaying) root.player.togglePlaying(); }
+            }
+            ActionButton {
+                icon.source: Qt.resolvedUrl("icons/next.svg"); hint: "Следующий трек"
+                implicitWidth: 32; implicitHeight: 32; padding: 7
+                enabled: root.player !== null && root.player.canGoNext
+                onClicked: { if (root.player && root.player.canGoNext) root.player.next(); }
+            }
+            Item { Layout.fillWidth: true }
+        }
+        RowLayout {
+            visible: root.length > 0
+            Layout.fillWidth: true; spacing: 5
+            UiText { text: Media.clock(root.position); font.pixelSize: 9; color: Theme.muted }
+            PanelSlider {
+                Layout.fillWidth: true; implicitHeight: 20
+                value: root.length > 0 ? root.position / root.length : 0
+                enabled: root.player !== null && root.player.canSeek && root.player.positionSupported
+                Accessible.name: "Позиция воспроизведения"
+                onMoved: root.seek(value)
+            }
+            UiText { text: Media.clock(root.length); font.pixelSize: 9; color: Theme.muted }
         }
     }
 }

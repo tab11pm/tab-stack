@@ -57,3 +57,5 @@ grim
 wl-clipboard
 ddcutil
 brightnessctl
+upower
+power-profiles-daemon

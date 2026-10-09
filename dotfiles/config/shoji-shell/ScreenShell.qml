@@ -210,6 +210,20 @@ Scope {
                 background: Rectangle { radius: 17; color: systemButton.highlighted ? Theme.accent : systemButton.hovered ? Theme.hover : Theme.surface }
                 onClicked: screenShell.shell.toggle(screenShell.output.name, "controls")
             }
+            ActionButton {
+                id: batteryButton
+                visible: Power.present
+                height: 34; topPadding: 7; bottomPadding: 7
+                hint: "Батарея: " + Power.percentage + "% · " + Power.state + "\nРежимы производительности"
+                highlighted: screenShell.panelOpen && screenShell.shell.panelPage === "battery"
+                contentItem: RowLayout {
+                    spacing: 6
+                    PanelIcon { name: "battery"; implicitWidth: 18; implicitHeight: 18; Layout.alignment: Qt.AlignVCenter; tint: batteryButton.highlighted ? Theme.surface : Power.percentage <= 15 ? Theme.danger : Theme.accent }
+                    UiText { text: Power.percentage + "%"; font.pixelSize: 11; Layout.alignment: Qt.AlignVCenter; color: batteryButton.highlighted ? Theme.surface : Theme.ink }
+                }
+                background: Rectangle { radius: 17; color: batteryButton.highlighted ? Theme.accent : batteryButton.hovered ? Theme.hover : Theme.surface }
+                onClicked: { Power.refresh(); screenShell.shell.toggle(screenShell.output.name, "battery"); }
+            }
         }
     }
 
@@ -401,7 +415,7 @@ Scope {
                             Layout.fillWidth: true
                             PanelIcon { name: "bell"; tint: Theme.accent; visible: popup.displayedPage === "notifications"; Layout.rightMargin: 4 }
                             UiText {
-                                text: popup.displayedPage === "controls" ? "Системная панель" : "Уведомления"
+                                text: popup.displayedPage === "battery" ? "Батарея и производительность" : popup.displayedPage === "controls" ? "Системная панель" : "Уведомления"
                                 font.pixelSize: 15; font.weight: Font.Medium; Layout.fillWidth: true
                             }
                             ActionButton { icon.source: Qt.resolvedUrl("icons/close.svg"); hint: "Закрыть"; implicitWidth: 32; padding: 7; onClicked: screenShell.shell.panelPage = "" }
@@ -411,6 +425,10 @@ Scope {
                             visible: popup.displayedPage === "controls"
                             active: screenShell.shell.panelReady && popup.displayedPage === "controls"
                             stats: screenShell.shell.stats
+                        }
+                        BatteryPanel {
+                            Layout.fillWidth: true
+                            visible: popup.displayedPage === "battery"
                         }
                         RowLayout {
                             visible: popup.displayedPage === "controls" && SystemTray.items.values.length > 0

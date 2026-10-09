@@ -398,7 +398,8 @@ if (process.argv.includes('--self-check')) {
     });
     process.stdout.on('error', () => { for (const child of children) stop(child); process.exitCode = 1; });
     // ponytail: one-shot CLI readers avoid idle servers; keep connections only if startup cost becomes noticeable.
-    await Promise.all(Object.entries({ codex, grok, kimi }).map(async ([id, read]) => {
+    const selected = process.argv.find(arg => arg.startsWith("--providers="))?.slice("--providers=".length).split(",");
+    await Promise.all(Object.entries({ codex, grok, kimi }).filter(([id]) => !selected || selected.includes(id)).map(async ([id, read]) => {
         try {
             const raw = await read();
             const windows = normalize(id, raw);

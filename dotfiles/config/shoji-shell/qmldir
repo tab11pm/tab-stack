@@ -41,7 +41,7 @@ AiLimitsWidget 1.0 AiLimitsWidget.qml
 MusicWidget 1.0 MusicWidget.qml
 WeatherWidget 1.0 WeatherWidget.qml
 GrainSurface 1.0 GrainSurface.qml
-VastWidget 1.0 VastWidget.qml
+DeepSeekWidget 1.0 DeepSeekWidget.qml
 HermesHud 1.0 HermesHud.qml
 WidgetSurface 1.0 WidgetSurface.qml
 GithubWidget 1.0 GithubWidget.qml
@@ -64,3 +64,6 @@ GamingProcessList 1.0 GamingProcessList.qml
 singleton Monitors 1.0 Monitors.qml
 MonitorSettings 1.0 MonitorSettings.qml
 MonitorChoice 1.0 MonitorChoice.qml
+
+singleton Power 1.0 Power.qml
+BatteryPanel 1.0 BatteryPanel.qml

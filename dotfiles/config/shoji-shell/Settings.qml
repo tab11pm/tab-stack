@@ -6,7 +6,7 @@ Singleton {
     readonly property string wallpaperDirectory: Quickshell.env("SHOJI_WALLPAPERS") || Quickshell.env("HOME") + "/Pictures/Wallpapers"
     readonly property string primaryOutput: Quickshell.env("SHOJI_PRIMARY_OUTPUT") || ""
     function enabled(id) {
-        if (["github", "vast", "limits", "sessions", "hermes", "weather"].includes(id))
+        if (["github", "vast", "deepseek", "limits", "sessions", "hermes", "weather"].includes(id))
             return Quickshell.env("SHOJI_ENABLE_" + id.toUpperCase()) === "1";
         return true;
     }

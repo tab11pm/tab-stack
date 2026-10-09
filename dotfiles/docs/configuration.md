@@ -74,8 +74,8 @@ installed `shoji-shell/wallpapers.json`, not to the repository.
 | Empty / Без виджетов | No widgets; first in the picker and first-run default |
 | Home Zone | Animated clock mascots, calendar, local system profile and account tiles behind the existing opt-in flags |
 | Gaming Home Zone | Home dashboard and game/process telemetry on the rightmost output |
-| Default / Текущая раскладка | Limits top-left, sessions mid-left, Vast bottom-left, GitHub top-right, Hermes top-center, music and Neko bottom-right |
-| Bottom HUD / Hermes снизу | Hermes above the dock with chats opening upward; limits bottom-right with music above; GitHub top-right; sessions bottom-left; no Vast or Neko |
+| Default / Текущая раскладка | Limits top-left, sessions mid-left, DeepSeek API bottom-left, GitHub top-right, Hermes top-center, music and Neko bottom-right |
+| Bottom HUD / Hermes снизу | Hermes above the dock with chats opening upward; limits bottom-right with music above; GitHub top-right; sessions bottom-left; no DeepSeek or Neko |
 
 These are different widget **sets**, not only different coordinates. Placement is
 defined in `WidgetLayouts.qml`. Changes animate through the wallpaper transition

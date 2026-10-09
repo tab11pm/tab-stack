@@ -6,6 +6,7 @@ import json
 import math
 import os
 from pathlib import Path
+import re
 import shlex
 import sqlite3
 import sys
@@ -14,7 +15,7 @@ import uuid
 
 
 HOME = Path.home()
-COMMANDS = {"codex": ["codex", "resume"], "kimi": ["kimi", "--session"], "grok": ["grok", "--resume"]}
+COMMANDS = {"codex": ["codex", "resume"], "opencode": ["opencode", "--session"]}
 ARCHIVE = Path(os.environ.get("XDG_STATE_HOME", HOME / ".local/state")) / "shoji-shell/session-archive.sqlite3"
 
 
@@ -45,11 +46,13 @@ def set_archived(provider, session_id, archived, path=ARCHIVE):
 
 
 def entry(provider, session_id, title, cwd, updated):
-    if not isinstance(session_id, str) or not isinstance(cwd, str):
+    if provider not in COMMANDS or not isinstance(session_id, str) or not isinstance(cwd, str):
         return None
-    bare_id = session_id.removeprefix("session_") if provider == "kimi" else session_id
     try:
-        if str(uuid.UUID(bare_id)) != bare_id.lower():
+        if provider == "opencode":
+            if not re.fullmatch(r"ses_[A-Za-z0-9]{1,128}", session_id):
+                return None
+        elif str(uuid.UUID(session_id)) != session_id.lower():
             return None
         if isinstance(updated, str):
             updated = dt.datetime.fromisoformat(updated.replace("Z", "+00:00")).timestamp()
@@ -93,27 +96,21 @@ def codex_sessions():
         connection.close()
 
 
-def file_sessions(provider, errors):
-    base = HOME / (".kimi-code" if provider == "kimi" else ".grok") / "sessions"
-    pattern = "wd_*/*/state.json" if provider == "kimi" else "*/*/summary.json"
-    for path in base.glob(pattern):
-        try:
-            value = json.loads(path.read_text())
-            if provider == "kimi":
-                if value.get("archived") or "main" not in value.get("agents", {}):
-                    continue
-                yield entry(provider, value.get("id"), value.get("title") or value.get("lastPrompt"),
-                            value.get("cwd"), value.get("updatedAt", 0) / 1000)
-            else:
-                if value.get("session_kind") == "headless" or value.get("archived"):
-                    continue
-                info = value.get("info", {})
-                yield entry(provider, info.get("id"), value.get("generated_title") or value.get("session_summary"),
-                            info.get("cwd"), value.get("last_active_at") or value.get("updated_at"))
-        except FileNotFoundError:
-            continue  # A session may be removed during the scan.
-        except (OSError, ValueError, TypeError, AttributeError):
-            errors.append("Часть сессий не удалось прочитать")
+def opencode_sessions(database=None):
+    if database is None:
+        database = Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share")) / "opencode/opencode.db"
+    if not database.is_file():
+        return
+    connection = sqlite3.connect(database.resolve().as_uri() + "?mode=ro", uri=True, timeout=2)
+    try:
+        for session_id, title, cwd, updated in connection.execute("""
+            SELECT id, title, directory, time_updated FROM session
+            WHERE time_archived IS NULL AND parent_id IS NULL
+            ORDER BY time_updated DESC
+        """):
+            yield entry("opencode", session_id, title, cwd, updated / 1000)
+    finally:
+        connection.close()
 
 
 def collect():
@@ -123,11 +120,10 @@ def collect():
     except (OSError, sqlite3.Error):
         return {provider: {"sessions": [], "error": "Не удалось прочитать архив виджета"} for provider in COMMANDS}
     for provider in COMMANDS:
-        errors = []
         try:
-            sessions = recent(codex_sessions() if provider == "codex" else file_sessions(provider, errors),
+            sessions = recent(codex_sessions() if provider == "codex" else opencode_sessions(),
                               {session_id for agent, session_id in archived if agent == provider})
-            result[provider] = {"sessions": sessions, "error": errors[0] if errors else ""}
+            result[provider] = {"sessions": sessions, "error": ""}
         except (OSError, sqlite3.Error, ValueError, TypeError):
             result[provider] = {"sessions": [], "error": "Не удалось прочитать сессии"}
     return result
@@ -137,7 +133,7 @@ def self_check():
     session_id = "01a0e407-de90-7d61-af9c-1d49a0a4008c"
     cwd = "/tmp/проект ' $(echo unsafe)"
     for provider, command in COMMANDS.items():
-        identifier = "session_" + session_id if provider == "kimi" else session_id
+        identifier = "ses_0123456789abcdefghij" if provider == "opencode" else session_id
         value = entry(provider, identifier, "Задача\nс пробелами", cwd, 1790540000)
         assert shlex.split(value["command"]) == ["cd", "--", cwd, "&&", *command, identifier]
         assert value["title"] == "Задача с пробелами"
@@ -149,14 +145,30 @@ def self_check():
         archive = Path(directory) / "archive.sqlite3"
         assert read_archive(archive) == set()
         set_archived("codex", session_id, True, archive)
-        set_archived("grok", session_id, True, archive)
+        opencode_id = "ses_0123456789abcdefghij"
+        set_archived("opencode", opencode_id, True, archive)
         set_archived("codex", session_id, True, archive)
-        assert read_archive(archive) == {("codex", session_id), ("grok", session_id)}
+        assert read_archive(archive) == {("codex", session_id), ("opencode", opencode_id)}
         assert recent(values, {session_id}) == []
         set_archived("codex", session_id, False, archive)
-        assert read_archive(archive) == {("grok", session_id)}
+        assert read_archive(archive) == {("opencode", opencode_id)}
         other = dict(values[0], id="01a0e407-de90-7d61-af9c-1d49a0a4008d")
         assert recent([*values, other], {session_id}) == [other]
+        database = Path(directory) / "opencode.db"
+        assert list(opencode_sessions(database)) == []
+        with sqlite3.connect(database) as connection:
+            connection.execute("CREATE TABLE session (id TEXT, title TEXT, directory TEXT, "
+                               "time_updated INTEGER, time_archived INTEGER, parent_id TEXT)")
+            connection.executemany("INSERT INTO session VALUES (?, ?, ?, ?, ?, ?)", [
+                (opencode_id, "Чат", cwd, 1790540000000, None, None),
+                ("ses_archived", "Архив", cwd, 1790540002000, 1790540003000, None),
+                ("ses_child", "Подзадача", cwd, 1790540001000, None, opencode_id),
+                ("invalid", "Некорректный ID", cwd, 1790540001000, None, None),
+            ])
+        sessions = recent(opencode_sessions(database))
+        assert len(sessions) == 1 and sessions[0]["id"] == opencode_id
+        assert shlex.split(sessions[0]["command"]) == ["cd", "--", cwd, "&&", "opencode", "--session", opencode_id]
+        assert recent(sessions, {opencode_id}) == []
     print("Session command quoting and recency: OK")
 
 

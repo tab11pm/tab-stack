@@ -46,7 +46,16 @@ See [fork provenance](fork.md) before substituting upstream binaries.
 primary output. `ScreenShell.qml` builds the top panel, tray, popups and dock UI.
 `Dock.qml` groups toplevels and owns pin state. `Services.qml`, `Media.qml`,
 `Keyboard.qml` and `Notifications.qml` expose local system state; `ControlCentre.qml`
-and its children invoke explicit local controls.
+and its children invoke explicit local controls. `Power.qml` exposes UPower and
+supported power profiles; `BatteryPanel.qml` is opened from the battery button.
+`MusicSource.js` selects browser MPRIS players and `MusicWidget.qml` exposes
+capability-gated transport/seek controls. The wallpaper input region includes
+those controls and keeps them disabled during transitions.
+
+`deepseek-widget.py` polls opt-in API balance and maintains a private local
+estimate ledger shared by `HomeAccounts.qml` and `DeepSeekWidget.qml`.
+`session-resume.py` reads Codex/OpenCode databases without modifying them;
+widget archiving uses its own separate local index.
 
 The wallpaper pipeline is `Wallpapers.qml` (library/state) → `WallpaperPicker.qml`
 (choice and previews) → `WallpaperTransition.qml` (two images and progress).
