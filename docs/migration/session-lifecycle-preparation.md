@@ -93,3 +93,16 @@ desktop user. Полный manager environment, credentials и runtime logs
 содержимое перечисленных файлов, а не runtime поведение. Следующий результат
 1Б — спецификация по дополненной карте и host evidence; архитектурный выбор
 ещё не утверждён. Работающий профиль сохраняется на время подготовки.
+
+## Дополнение: пользовательские host результаты
+
+Пользователь предоставил selected user-manager state: graphical-session.target
+и graphical-session-pre.target inactive/dead; elephant.service active/running;
+omarchy-sleep-lock.service inactive/dead. В выбранном manager environment заданы
+DISPLAY/WAYLAND_DISPLAY, desktop=ShojiWM, type=wayland; OMARCHY_PATH отсутствует.
+Это не доказательство отсутствия всех Omarchy services или stale environment
+после будущего logout. Native logout helper --check доступен на host.
+
+Подготовлена [предлагаемая спецификация 1Б](../superpowers/specs/2026-10-10-independent-session-design.md).
+Реализация ещё не начата. Runtime scripts, units, targets и работающий профиль
+на этом шаге не изменялись.
