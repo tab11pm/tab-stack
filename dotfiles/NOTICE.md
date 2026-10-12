@@ -1,5 +1,12 @@
 # Attribution and licensing
 
+**tab-stack** is maintained and adapted by **Tabek** as part of **Alt Tabek**.
+It originated from [howdeploy/kisa-stack](https://github.com/howdeploy/kisa-stack).
+The project branding identifies the current configuration project; original
+authorship, copyright and the component terms below remain attached to their
+respective work. The original repository copyright notice is retained in
+[LICENSE](../LICENSE).
+
 The repository's MIT license covers original KISA configuration, documentation,
 scripts and effects. It does not replace licenses or other notices attached to
 third-party material. Modified upstream code retains its upstream terms.
