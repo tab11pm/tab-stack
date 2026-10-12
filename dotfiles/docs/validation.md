@@ -1,5 +1,38 @@
 # Validation record
 
+## 2026-10-12 desktop source export
+
+Exported selected installed source on top of `origin/main` including monitor and
+widget updates already published there. Kept account integrations opt-in, idle
+sleep disabled by default, existing presets and private-profile exclusions.
+No installed configuration was overwritten or session action performed.
+
+- Activity accounting: 24 isolated tests passed, including pause/viewing, lock,
+  reconnect, clock gaps, DST boundaries, private permissions and collector lease.
+- Session lifecycle/install/state/integration: 60 tests ran, 59 passed and one
+  Unix peer-identity test skipped because the sandbox forbids Unix socket binding.
+- Night schedule checks and a fake-native-overlay check passed for multi-output,
+  temperature, CRT/aquarium coexistence, hotplug and simulated GPU failure. The
+  latter used the installed runtime and a temporary Node TypeScript ESM loader.
+- MRU checks passed for forward/reverse selection, deferred commit, wrapping,
+  cancellation and empty desktops. Reverse selection failed before the fix.
+- Widget library checks passed for published preset order, legacy migration,
+  copy/edit isolation, protected empty, malformed data and serialization.
+- Existing monitor, brightness and music-source checks passed. The spectrum
+  self-check passed, including the Python FFT fallback without NumPy.
+- Full TypeScript typecheck passed against the installed runtime after porting
+  prepared vector-uniform/signal typing corrections.
+- Qt shaders compiled for isolated installation; generated `.qsb` files are ignored.
+- Temporary-home installation/reinstallation preserved integration/key files,
+  wallpaper/monitor/night/idle/widget profiles and private activity history.
+
+Qt 6 lint reports no error-level diagnostics in the exported QML; incomplete
+Quickshell metadata, dynamic model/property and unused-import warnings remain.
+These checks do not establish fresh-machine or pinned-runtime compatibility.
+Native Alt-release matching, rendered UI/animations, actual lock/suspend,
+hotplug/mode changes, cold boot and a clean-user session remain acceptance tasks.
+The live desktop was not restarted, reloaded, locked or suspended during export.
+
 ## 2026-10-10 widget export
 
 Selected installed widget sources were ported onto main after the monitor PR.

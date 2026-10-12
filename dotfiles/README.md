@@ -5,6 +5,9 @@ derived from [howdeploy/kisa-stack](https://github.com/howdeploy/kisa-stack).
 This fork adds a custom Quickshell session lock with shared password entry across
 outputs and a [monitor settings panel](docs/monitors.md) with layout, primary output,
 refresh rate, scale, timed rollback and laptop/external brightness controls.
+The [October 12 update](docs/update-2026-10-12.md) adds night light, optional idle
+sleep, activity accounting, MRU switching and a widget layout editor, plus an
+[opt-in independent session](docs/session.md) and [optional greeter](docs/greeter.md).
 See [the locker guide](config/shoji-shell/lock/README.md).
 
 A ShojiWM desktop with a Quickshell panel and dock, a customized Walker launcher,

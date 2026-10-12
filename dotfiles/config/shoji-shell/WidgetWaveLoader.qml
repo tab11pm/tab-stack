@@ -7,16 +7,35 @@ Loader {
     required property var output
     required property var transition
     property bool fits: true
-    readonly property bool beforeVisible: WidgetLayouts.enabledOn(widgetId, output, transition.displayedLayoutId)
+    property bool legacyWeather: false
+    readonly property bool beforeVisible: visibleFor(transition.displayedLayout)
     readonly property bool afterVisible: transition.transitioning
-        ? WidgetLayouts.enabledOn(widgetId, output, transition.transitionLayoutId) : beforeVisible
+        ? visibleFor(transition.transitionLayout) : beforeVisible
     readonly property bool relocating: (transition.preparing || transition.transitioning)
-        && WidgetLayouts.changesPlacement(widgetId, output, transition.displayedLayoutId, transition.transitionLayoutId)
-    readonly property var placement: WidgetLayouts.placement(widgetId,
-        beforeVisible && !(transition.transitioning && relocating)
-            ? transition.displayedLayoutId : transition.transitionLayoutId)
-    x: WidgetLayouts.horizontalPosition(placement, output.width, width)
-    y: WidgetLayouts.verticalPosition(placement, output.height, height)
+        && WidgetLayouts.changesPlacement(widgetId, output, transition.displayedLayout, transition.transitionLayout)
+    readonly property var placementLayout: beforeVisible && !(transition.transitioning && relocating)
+        ? transition.displayedLayout : transition.transitionLayout
+    readonly property bool custom: WidgetLayouts.isCustom(placementLayout)
+    readonly property var placement: legacyWeather && !custom
+        ? ({ output: output.name, horizontal: "left", vertical: "bottom", x: 16, y: 16 })
+        : WidgetLayouts.placement(widgetId, placementLayout)
+    function visibleFor(selected) {
+        if (selected.id === "empty") return false;
+        return legacyWeather && !WidgetLayouts.isCustom(selected) ? Settings.enabled("weather")
+            : WidgetLayouts.enabledOn(widgetId, output, selected);
+    }
+    function positionX() {
+        const size = custom ? width * scale : width;
+        const value = WidgetLayouts.horizontalPosition(placement, output.width, size);
+        return custom ? Math.max(0, Math.min(Math.max(0, output.width - size), value)) : value;
+    }
+    function positionY() {
+        const size = custom ? height * scale : height;
+        const value = WidgetLayouts.verticalPosition(placement, output.height, size);
+        return custom ? Math.max(0, Math.min(Math.max(0, output.height - size), value)) : value;
+    }
+    x: positionX()
+    y: positionY()
     active: Wallpapers.ready && transition.hasWallpaper && fits && (beforeVisible || afterVisible)
     enabled: !LiveWallpapers.busy && !transition.preparing
         && !(transition.transitioning && (beforeVisible !== afterVisible || relocating))

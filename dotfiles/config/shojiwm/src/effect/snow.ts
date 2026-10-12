@@ -1,6 +1,6 @@
 import {
   COMPOSITOR, animationVariable, createAnimationController, markLayerDirty,
-  compileLayerEffect, layerSource, shaderStage, loadShader, type WaylandLayer,
+  compileLayerEffect, layerSource, shaderStage, loadShader, type WaylandLayer, type ShaderUniformVec4,
 } from "shoji_wm";
 
 // Set false and reload the compositor config to stop both planes.
@@ -43,7 +43,7 @@ export function snowEffect(layer: WaylandLayer) {
     right = Math.max(right, screen.position.x + x + width);
     bottom = Math.max(bottom, screen.position.y + y + height);
   }
-  const desktop = Number.isFinite(left)
+  const desktop: ShaderUniformVec4 = Number.isFinite(left)
     ? [left, top, right - left, bottom - top]
     : [output.position.x, output.position.y, layer.position.width, layer.position.height];
   return compileLayerEffect({

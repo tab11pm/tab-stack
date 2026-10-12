@@ -13,7 +13,6 @@ WidgetSurface {
     property string avatarUrl: ""
     property string pending: ""
     property string error: ""
-    readonly property string sessionId: Quickshell.env("XDG_SESSION_ID")
     readonly property var actionLabels: ({ logout: "Выйти из сессии?", reboot: "Перезагрузить компьютер?", poweroff: "Выключить компьютер?" })
     onEnabledChanged: { if (!enabled) pending = ""; }
     Process {
@@ -31,16 +30,16 @@ WidgetSurface {
     }
     Process {
         id: action
-        onExited: exitCode => { if (exitCode !== 0) root.error = "Система не разрешила действие"; }
+        stderr: SplitParser { onRead: data => { root.error = data.trim(); } }
+        onExited: exitCode => { if (exitCode !== 0 && !root.error) root.error = "Система не разрешила действие"; }
     }
     function requestAction(name) {
         error = "";
-        if (name === "logout" && !sessionId) { error = "Не удалось определить сессию"; return; }
         pending = name;
     }
     function confirm() {
         if (action.running || !pending) return;
-        if (pending === "logout" && sessionId) action.command = ["loginctl", "terminate-session", sessionId];
+        if (pending === "logout") action.command = ["python3", decodeURIComponent(Qt.resolvedUrl("../shojiwm/scripts/logout").toString().replace("file://", ""))];
         else if (pending === "reboot" || pending === "poweroff") action.command = ["systemctl", pending];
         else return;
         pending = "";

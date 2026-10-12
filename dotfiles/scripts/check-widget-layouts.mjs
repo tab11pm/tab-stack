@@ -1,0 +1,38 @@
+// Pure library checks with synthetic layouts; no profiles or desktop connections.
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+const shell = new URL('../config/shoji-shell/', import.meta.url);
+const widgets = vm.createContext({});
+vm.runInContext(readFileSync(new URL('WidgetLayoutState.js', shell), 'utf8'), widgets);
+const library = vm.createContext({ Widgets: widgets });
+vm.runInContext(readFileSync(new URL('WidgetLibraryState.js', shell), 'utf8').replace(/^\.import .*$/gm, ''), library);
+const qml = readFileSync(new URL('WidgetLayouts.qml', shell), 'utf8');
+const start = qml.indexOf('[', qml.indexOf('property var configuredLayouts:'));
+const end = qml.indexOf('    readonly property var hiddenPlacement', start);
+const presets = vm.runInNewContext(qml.slice(start, end).trim());
+const initial = library.load(null, presets);
+assert.equal(initial.layouts[0].id, 'empty');
+assert.deepEqual(Array.from(initial.layouts, entry => entry.id), Array.from(presets, entry => entry.id));
+const placement = { output: 'TEST-1', horizontal: 'left', vertical: 'top', x: 20, y: 30 };
+const old = widgets.add({ version: 1, layout: { id: 'custom', widgets: {} } }, 'music', placement);
+const migrated = library.load(old, presets);
+assert.equal(migrated.layouts.at(-1).widgets.music.output, 'TEST-1');
+const copy = library.create(initial, 'Copied layout', 'default');
+assert.equal(copy.library.layouts.at(-1).mode, 'custom');
+const edited = library.replaceWidgets(copy.library, copy.id, { music: placement });
+assert.equal(Object.keys(edited.layouts.at(-1).widgets).join(), 'music');
+assert.ok(Object.keys(initial.layouts.find(entry => entry.id === 'default').widgets).length > 1, 'Editing must not mutate the original preset');
+assert.equal(library.rename(edited, copy.id, 'Renamed').layouts.at(-1).name, 'Renamed');
+assert.equal(library.remove(edited, copy.id).layouts.length, initial.layouts.length);
+for (const action of ['rename', 'remove', 'replaceWidgets'])
+    assert.throws(() => library[action](initial, 'empty', action === 'rename' ? 'Changed' : {}));
+assert.throws(() => library.load({ version: 99 }, presets));
+assert.throws(() => library.validate({ version: 2, layouts: [{ id: 'constructor', name: 'bad', mode: 'custom', widgets: {} }] }));
+assert.throws(() => library.replaceWidgets(copy.library, copy.id, { unknown: placement }));
+assert.throws(() => widgets.cleanPlacement({ ...placement, x: NaN }));
+const roundTrip = library.validate(JSON.parse(JSON.stringify(edited)));
+assert.equal(roundTrip.layouts.at(-1).widgets.music.x, 20);
+const position = widgets.clampPosition(2000, -100, 420, 630, { width: 1920, height: 1080 });
+assert.equal(position.x, 1500); assert.equal(position.y, 0);
+console.log('Widget library: presets, legacy migration, copy/edit isolation, protected empty, validation and round-trip passed');

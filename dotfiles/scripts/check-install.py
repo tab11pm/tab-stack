@@ -37,6 +37,16 @@ def main():
         keyfile = config / "shoji-shell/deepseek-api-key"
         keyfile.write_text("synthetic-key-fixture\n")
         keyfile.chmod(0o600)
+        local_profiles = {
+            "night-light.json": {"scheduled": True, "start": "22:00", "end": "07:00"},
+            "idle-sleep.json": {"enabled": False, "minutes": 5},
+            "widget-layouts.json": {"version": 2, "layouts": [{"id": "empty", "name": "Без виджетов", "mode": "preset", "widgets": {}}]},
+        }
+        for name, value in local_profiles.items():
+            config.joinpath("shoji-shell", name).write_text(json.dumps(value) + "\n")
+        activity = home / ".local/state/shoji-shell/activity.sqlite3"
+        activity.parent.mkdir(parents=True)
+        activity.write_bytes(b"synthetic private activity fixture")
         user_file = config / "ghostty/user-note"
         user_file.write_text("preserve in backup\n")
         subprocess.run([*args, "--apply"], check=True, capture_output=True)
@@ -52,12 +62,17 @@ def main():
         assert keyfile.stat().st_mode & 0o777 == 0o600
         for name in ("Power.qml", "BatteryPanel.qml", "MusicSource.js", "DeepSeekWidget.qml", "deepseek-widget.py"):
             assert config.joinpath("shoji-shell", name).is_file()
+        for name, value in local_profiles.items():
+            assert json.loads(config.joinpath("shoji-shell", name).read_text()) == value, "Reinstall lost " + name
+        assert activity.read_bytes() == b"synthetic private activity fixture"
+        for name in ("NightLight.qml", "IdleSleep.qml", "Activity.qml", "WidgetEditor.qml", "CustomWidgetLayout.qml", "Switcher.qml"):
+            assert config.joinpath("shoji-shell", name).is_file()
         manifests = list(home.glob(".local/state/tab-stack/backups/*/manifest.json"))
         assert len(manifests) == 2
         backed_up = [Path(e["backup"]) for m in manifests for e in json.loads(m.read_text()) if e["backup"]]
         assert any((p / "user-note").is_file() for p in backed_up)
         assert (home / ".local/bin/codex-resume-ghostty").stat().st_mode & 0o111
-        print("Preview, isolated install, generated paths, runtime link, wallpaper groups, monitor settings and second-install backups: OK")
+        print("Preview, isolated install, generated paths, runtime link, wallpaper groups, monitor/night/idle/widget profiles, private activity history and second-install backups: OK")
 
 
 if __name__ == "__main__":

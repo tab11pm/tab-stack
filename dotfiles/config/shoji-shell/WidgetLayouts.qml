@@ -2,6 +2,7 @@ pragma Singleton
 pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
+import "WidgetLibraryState.js" as LibraryState
 
 Singleton {
     id: root
@@ -29,6 +30,20 @@ Singleton {
             deepseek: { output: "primary", horizontal: "left", vertical: "bottom", x: 16, y: 16 },
             music: { output: "primary", horizontal: "right", vertical: "bottom", x: 16, y: 16 }
         } },
+        { id: "activity", name: "Время за ПК", widgets: {
+            activity: { output: "primary", horizontal: "center", vertical: "center", x: 0, y: 0 }
+        } },
+        { id: "default-activity", name: "Текущая раскладка · Время за ПК", widgets: {
+            limits: { output: "primary", horizontal: "left", vertical: "top", x: 16, y: 68 },
+            sessions: { output: "primary", horizontal: "left", vertical: "center", x: 16, y: 0 },
+            neko: { output: "primary", horizontal: "right", vertical: "bottom", x: 314, y: 16 },
+            github: { output: "primary", horizontal: "right", vertical: "top", x: 16, y: 68 },
+            profile: { output: "primary", horizontal: "right", vertical: "center", x: 16, y: 0 },
+            hermes: { output: "primary", horizontal: "center", vertical: "top", x: 0, y: 68 },
+            deepseek: { output: "primary", horizontal: "left", vertical: "bottom", x: 16, y: 16 },
+            music: { output: "primary", horizontal: "right", vertical: "bottom", x: 16, y: 16 },
+            activity: { output: "primary", horizontal: "center", vertical: "top", x: 0, y: 150 }
+        } },
         { id: "bottom-hud", name: "Hermes снизу", widgets: {
             hermes: { output: "primary", horizontal: "center", vertical: "bottom", x: 0, y: 84 },
             limits: { output: "primary", horizontal: "right", vertical: "bottom", x: 16, y: 16 },
@@ -38,7 +53,7 @@ Singleton {
         } }
     ]
     readonly property var hiddenPlacement: ({ output: "", horizontal: "left", vertical: "top", x: 0, y: 0 })
-    readonly property var layouts: validLayouts(configuredLayouts)
+    readonly property var layouts: CustomWidgetLayout.document ? CustomWidgetLayout.document.layouts : LibraryState.load(null, configuredLayouts).layouts
     readonly property var current: layout(Wallpapers.layoutId)
     property var transitions: ({})
 
@@ -68,14 +83,16 @@ Singleton {
                 if (validPlacement(value.widgets[id]))
                     Object.defineProperty(widgets, id, { value: value.widgets[id], enumerable: true });
             }
-            result.push({ id: value.id, name: typeof value.name === "string" ? value.name : value.id, widgets });
+            result.push({ id: value.id, name: typeof value.name === "string" ? value.name : value.id, mode: value.mode || "preset", widgets });
         }
         return result.length ? result : [{ id: "empty", name: "Без виджетов", widgets: {} }];
     }
     function layout(id) {
+        if (id && typeof id === "object") return id;
         return layouts.find(value => value.id === id)
-            || layouts.find(value => value.id === "default") || layouts[0];
+            || layouts.find(value => value.id === "empty") || layouts[0];
     }
+    function isCustom(value) { return layout(value).mode === "custom"; }
     function placement(id, layoutId) {
         const selected = layoutId === undefined ? current : layout(layoutId);
         return Object.prototype.hasOwnProperty.call(selected.widgets, id)

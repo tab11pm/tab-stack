@@ -13,15 +13,15 @@ Scope {
     property bool layoutEnabled: true
     readonly property var transition: output ? WidgetLayouts.transitions[output.name] || null : null
     readonly property bool beforeVisible: transition
-        ? transition.hasWallpaper && WidgetLayouts.enabledOn("hermes", output, transition.displayedLayoutId)
+        ? transition.hasWallpaper && WidgetLayouts.enabledOn("hermes", output, transition.displayedLayout)
         : layoutEnabled
     readonly property bool afterVisible: transition && transition.transitioning
-        ? WidgetLayouts.enabledOn("hermes", output, transition.transitionLayoutId) : beforeVisible
+        ? WidgetLayouts.enabledOn("hermes", output, transition.transitionLayout) : beforeVisible
     readonly property bool relocating: !!transition && (transition.preparing || transition.transitioning)
-        && WidgetLayouts.changesPlacement("hermes", output, transition.displayedLayoutId, transition.transitionLayoutId)
+        && WidgetLayouts.changesPlacement("hermes", output, transition.displayedLayout, transition.transitionLayout)
     readonly property var nextPlacement: transition
         ? WidgetLayouts.placement("hermes", beforeVisible && !(transition.transitioning && relocating)
-            ? transition.displayedLayoutId : transition.transitionLayoutId)
+            ? transition.displayedLayout : transition.transitionLayout)
         : placement
     property var frozenPlacement: null
     readonly property var wavePlacement: LiveWallpapers.busy && !LiveWallpapers.revealing && frozenPlacement
@@ -31,6 +31,13 @@ Scope {
         function onCaptureWidgets() { root.frozenPlacement = root.nextPlacement; }
     }
     property var placement: ({ horizontal: "center", vertical: "top", x: 0, y: 68 })
+    readonly property bool customPlacement: transition
+        ? WidgetLayouts.isCustom(beforeVisible && !(transition.transitioning && relocating) ? transition.displayedLayout : transition.transitionLayout)
+        : WidgetLayouts.isCustom(Wallpapers.layoutId)
+    readonly property real panelX: Math.max(0, Math.min(Math.max(0, (output ? output.width : 480) - panel.implicitWidth),
+        WidgetLayouts.horizontalPosition(wavePlacement, output ? output.width : 480, panel.implicitWidth)))
+    readonly property real panelY: Math.max(0, Math.min(Math.max(0, (output ? output.height : 1080) - panel.implicitHeight),
+        WidgetLayouts.verticalPosition(wavePlacement, output ? output.height : 1080, panel.implicitHeight)))
     readonly property bool opensUp: wavePlacement.vertical === "bottom"
     property bool shown: true
     property bool expanded: false
@@ -48,6 +55,7 @@ Scope {
     readonly property var transcript: activeChat.transcript
     readonly property var question: activeChat.requests.length ? activeChat.requests[0] : null
     readonly property string hermesRoot: Quickshell.env("SHOJI_HERMES_ROOT") || Quickshell.env("HOME") + "/.hermes/hermes-agent"
+    readonly property string hermesLauncher: Quickshell.env("SHOJI_HERMES_LAUNCHER") || ""
     onQuestionChanged: { if (responseInput) responseInput.text = ""; }
     component ChatState: QtObject {
         property int number: 1
@@ -262,8 +270,9 @@ Scope {
 
     Process {
         id: backend
-        command: [root.hermesRoot + "/venv/bin/python", "-u", "-m", "tui_gateway.entry"]
-        workingDirectory: root.hermesRoot
+        command: root.hermesLauncher ? [root.hermesLauncher]
+            : [root.hermesRoot + "/venv/bin/python", "-u", "-m", "tui_gateway.entry"]
+        workingDirectory: root.hermesLauncher ? Quickshell.env("HOME") : root.hermesRoot
         environment: ({ HERMES_HOME: Quickshell.env("HOME") + "/.hermes", PYTHONPATH: null, PYTHONHOME: null })
         stdinEnabled: true
         stdout: SplitParser { onRead: data => root.receive(data) }
@@ -313,22 +322,24 @@ Scope {
             moving: root.relocating && root.shown
             viewportSize: Qt.size(root.output ? root.output.width : 1, root.output ? root.output.height : 1)
             captureOrigin: Qt.vector2d(
-                WidgetLayouts.horizontalPosition(root.wavePlacement, viewportSize.width, panel.width),
-                WidgetLayouts.verticalPosition(root.wavePlacement, viewportSize.height, panel.height))
+                root.customPlacement ? root.panelX : WidgetLayouts.horizontalPosition(root.wavePlacement, viewportSize.width, panel.width),
+                root.customPlacement ? root.panelY : WidgetLayouts.verticalPosition(root.wavePlacement, viewportSize.height, panel.height))
         }
     }
     PanelWindow {
         id: panel
         screen: root.output
         visible: root.shown && (root.beforeVisible || root.afterVisible) && !!root.output
-        anchors.top: root.wavePlacement.vertical !== "bottom"
-        anchors.bottom: root.wavePlacement.vertical === "bottom"
-        anchors.left: root.wavePlacement.horizontal === "left"
-        anchors.right: root.wavePlacement.horizontal === "right"
-        margins.top: root.wavePlacement.y
-        margins.bottom: root.wavePlacement.y
-        margins.left: root.wavePlacement.x
-        margins.right: root.wavePlacement.horizontal === "center" ? -root.wavePlacement.x : root.wavePlacement.x
+        anchors.top: root.customPlacement || root.wavePlacement.vertical !== "bottom"
+        anchors.bottom: !root.customPlacement && root.wavePlacement.vertical === "bottom"
+        anchors.left: root.customPlacement || root.wavePlacement.horizontal === "left"
+        anchors.right: !root.customPlacement && root.wavePlacement.horizontal === "right"
+        margins.top: root.customPlacement ? root.panelY : root.wavePlacement.vertical === "center"
+            ? (root.output ? (root.output.height - panel.implicitHeight) / 2 : 0) + root.wavePlacement.y
+            : root.wavePlacement.y
+        margins.bottom: root.customPlacement ? 0 : root.wavePlacement.y
+        margins.left: root.customPlacement ? root.panelX : root.wavePlacement.x
+        margins.right: root.customPlacement ? 0 : root.wavePlacement.horizontal === "center" ? -root.wavePlacement.x : root.wavePlacement.x
         implicitWidth: Math.min(480, root.output ? root.output.width - 32 : 480)
         implicitHeight: composerSurface.implicitHeight + (root.expanded ? bodyRow.implicitHeight : 0)
         Behavior on implicitHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
@@ -350,8 +361,8 @@ Scope {
                 transitionContext: root.transition
                 screenSize: Qt.size(root.output ? root.output.width : 1, root.output ? root.output.height : 1)
                 localOrigin: Qt.vector2d(
-                    WidgetLayouts.horizontalPosition(root.wavePlacement, screenSize.width, panel.width),
-                    WidgetLayouts.verticalPosition(root.wavePlacement, screenSize.height, panel.height))
+                    root.customPlacement ? root.panelX : WidgetLayouts.horizontalPosition(root.wavePlacement, screenSize.width, panel.width),
+                    root.customPlacement ? root.panelY : WidgetLayouts.verticalPosition(root.wavePlacement, screenSize.height, panel.height))
                 widgetSize: Qt.size(panelContent.width, panelContent.height)
                 localProgress: root.transition ? root.transition.progress : 1
                 localBefore: root.beforeVisible && !root.relocating ? 1 : 0

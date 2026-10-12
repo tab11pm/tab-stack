@@ -1,0 +1,10 @@
+[Unit]
+Description=Elephant launcher backend for tab-stack
+PartOf=tab-stack-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/elephant
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=10s

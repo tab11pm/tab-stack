@@ -59,3 +59,5 @@ ddcutil
 brightnessctl
 upower
 power-profiles-daemon
+slurp
+xdg-user-dirs

@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+
+const source = new URL('./NightLightSchedule.js', import.meta.url);
+const context = vm.createContext({ Date });
+if (fs.existsSync(source)) vm.runInContext(fs.readFileSync(source, 'utf8'), context);
+assert.equal(typeof context.effective, 'function', 'night-light scheduling is implemented');
+const config = { scheduled: true, start: '22:00', end: '07:00', manual: false, override: null };
+const at = (time) => new Date('2026-10-10T' + time + ':00');
+for (const [time, want] of [['21:59', false], ['22:00', true], ['23:59', true], ['00:00', true], ['06:59', true], ['07:00', false]])
+    assert.equal(context.effective(config, at(time)), want, 'overnight boundary ' + time);
+assert.equal(context.effective({ ...config, start: '09:00', end: '17:00' }, at('12:00')), true);
+assert.equal(context.effective({ ...config, start: '09:00', end: '17:00' }, at('22:00')), false);
+assert.equal(context.effective({ ...config, scheduled: false, manual: true }, at('12:00')), true);
+const until = context.nextBoundary(config, at('23:00'));
+assert.equal(new Date(until).getDate(), 11, 'end boundary is tomorrow');
+assert.equal(new Date(until).getHours(), 7);
+assert.equal(context.nextBoundary(config, at('21:00')), at('22:00').getTime());
+const overridden = { ...config, override: { enabled: true, until: at('22:00').getTime() } };
+assert.equal(context.effective(overridden, at('21:00')), true);
+assert.equal(context.effective({ ...config, override: { enabled: false, until } }, at('23:00')), false);
+assert.equal(context.effective({ ...config, override: { enabled: false, until } }, new Date(until)), false);
+assert.equal(context.effective(overridden, at('22:00')), true, 'schedule resumes at boundary');
+assert.equal(context.validTime('25:00'), false);
+assert.equal(context.validTime('22:60'), false);
+assert.equal(context.validTime('7:00'), false);
+assert.equal(context.validTime('07:00'), true);
+assert.throws(() => context.normalize({ ...config, start: '07:00' }), /different/);
+assert.throws(() => context.normalize({ ...config, temperature: 9000 }), /temperature/);
+assert.equal(context.normalize({}).temperature, 4000);
+console.log('Night light: schedule, midnight, manual override, expiry and validation passed');

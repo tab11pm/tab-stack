@@ -4,6 +4,7 @@ import {
 } from "shoji_wm";
 import type { IpcServer } from "shoji_wm/ipc";
 import { aquariumOverlayEffect, setAquariumEnabled } from "./aquarium";
+import { nightColorStage, nightColorState, setNightColor } from "./night-color";
 
 const SHADER = loadShader("./src/effect/retro-screen.frag");
 const active = new Map<string, { id: string; handle?: OverlayHandle }>();
@@ -21,10 +22,13 @@ let preview: string | null = null;
 let previewSession: string | null = null;
 const pickerSessions = new Map<string, string | null>();
 let error = "";
+let nightError = "";
+// Preserve user intent when native lock cleanup removes the applied overlay.
+let nightRequested = false;
 let notify = () => {};
 
 function currentId(): string { return preview ?? selected; }
-function wanted(): boolean { return currentId() !== "none"; }
+function wanted(): boolean { return currentId() !== "none" || nightColorState().enabled; }
 function state() { return { items, selected, preview: currentId(), active: currentId(), previewing: preview !== null, error }; }
 
 function sync(): void {
@@ -33,7 +37,7 @@ function sync(): void {
   setAquariumEnabled(id === "aquarium");
   // Pending openings finish before the next shader can occupy the same slot.
   for (const [output, entry] of active) {
-    if (entry.id !== id && entry.handle) {
+    if ((!wanted() || entry.id !== id || !COMPOSITOR.output.list.includes(output)) && entry.handle) {
       active.delete(output);
       entry.handle.dispose();
     }
@@ -43,8 +47,14 @@ function sync(): void {
     if (active.has(output)) continue;
     void enableScreenShader(output, id).catch(failure => {
       error = "Не удалось показать эффект: " + String(failure);
+      if (nightColorState().enabled) {
+        nightError = "Не удалось применить ночной фильтр: " + String(failure);
+        setNightColor(false, nightColorState().temperature);
+        sync();
+      }
       console.error("Screen shader overlay failed:", output, failure);
       notify();
+      notifyNight();
     });
   }
 }
@@ -59,10 +69,12 @@ async function enableScreenShader(output: string, id: string): Promise<void> {
       effect: id === "aquarium" ? aquariumOverlayEffect(output) : compileOverlayEffect({
         input: backdropSource(),
         alpha: "preserve",
-        pipeline: [shaderStage(SHADER, { uniforms: { rows: 768, enabled } })],
+        pipeline: id === "retro"
+          ? [shaderStage(SHADER, { uniforms: { rows: 768, enabled } }), nightColorStage()]
+          : [nightColorStage()],
       }),
     });
-    if (active.get(output) !== entry || currentId() !== id || !COMPOSITOR.output.list.includes(output)) {
+    if (active.get(output) !== entry || !wanted() || currentId() !== id || !COMPOSITOR.output.list.includes(output)) {
       if (active.get(output) === entry) active.delete(output);
       handle.dispose();
       sync();
@@ -73,7 +85,15 @@ async function enableScreenShader(output: string, id: string): Promise<void> {
       if (active.get(output) !== entry) return;
       active.delete(output);
       // Another top overlay or native cleanup ended this effect; do not fight it.
-      if (wanted()) stopRetroScreen();
+      if (wanted()) {
+        // A replaced top overlay must not repeatedly steal the same slot.
+        if (nightColorState().enabled) {
+          setNightColor(false, nightColorState().temperature);
+          nightError = "Ночной фильтр прерван другим экранным эффектом";
+          notifyNight();
+        }
+        stopRetroScreen();
+      }
     });
   } catch (error) {
     if (active.get(output) === entry) {
@@ -90,6 +110,13 @@ export function stopRetroScreen(): void {
   previewSession = null;
   sync();
   notify();
+}
+
+let notifyNight = () => {};
+export function stopScreenEffects(): void {
+  nightRequested = false;
+  setNightColor(false, nightColorState().temperature);
+  stopRetroScreen();
 }
 
 export function cancelScreenShaderPreview(): void {
@@ -116,6 +143,32 @@ export function screenShaderPickerClosed(layer: WaylandLayer): void {
 export function registerScreenShaderIpc(ipc: IpcServer,
   previewScene: (output: string) => { origin: number[]; extent: number[]; windows: number[][] } | null): void {
   notify = () => ipc.broadcast("screen-shaders.changed", state());
+  const nightState = () => ({ ...nightColorState(), error: nightError });
+  notifyNight = () => ipc.broadcast("night-light.changed", nightState());
+  ipc.handle("night-light.get", nightState);
+  ipc.handle("night-light.set", params => {
+    const request = params as { enabled?: unknown; temperature?: unknown } | undefined;
+    if (typeof request?.enabled !== "boolean" || typeof request.temperature !== "number"
+      || !Number.isFinite(request.temperature) || request.temperature < 2500 || request.temperature > 6500)
+      throw new TypeError("Invalid night-light settings");
+    nightError = "";
+    nightRequested = request.enabled;
+    setNightColor(request.enabled, request.temperature);
+    sync();
+    notifyNight();
+    return nightState();
+  });
+  // Display-only notification from the locker after authenticated unlock.
+  // Never fight native cleanup immediately or revive CRT/aquarium effects.
+  ipc.handle("night-light.resume", () => {
+    if (nightRequested && !nightColorState().enabled) {
+      nightError = "";
+      setNightColor(true, nightColorState().temperature);
+      sync();
+      notifyNight();
+    }
+    return nightState();
+  });
   ipc.handle("screen-shaders.get", params => {
     const output = (params as { output?: unknown } | undefined)?.output;
     return { ...state(), scene: typeof output === "string" ? previewScene(output) : null };

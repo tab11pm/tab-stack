@@ -97,7 +97,7 @@ Existing component directories are moved to a private backup beneath
 from the original installer remain in its previous directory. The printed
 `manifest.json` maps every target to its backup. Upgrades preserve an existing
 shell `integrations.env`, `wallpapers.json`, `wallpaper-groups.json` and
-`monitors.json` and the private `deepseek-api-key` file; review those local files yourself.
+`monitors.json`, `night-light.json`, `idle-sleep.json` and `widget-layouts.json` and the private `deepseek-api-key` file; review those local files yourself.
 Other local component changes remain in the backup, not merged into the new copy.
 
 For an isolated staging installation, use `--target-home /absolute/temporary/directory`.
@@ -131,3 +131,7 @@ until satisfied. No automatic removal command deletes your current configuration
 Restoring user files does not downgrade system ShojiWM or undo dependency packages.
 Keep your previous system package if you need that rollback; the fork's system
 installer and your package manager own those files.
+
+The [independent session](session.md) is opt-in and installed separately with
+`--component session`; the default component list does not enable it. The
+[greeter configuration](greeter.md) requires a separate administrator operation.

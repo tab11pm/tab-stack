@@ -67,3 +67,19 @@ MonitorChoice 1.0 MonitorChoice.qml
 
 singleton Power 1.0 Power.qml
 BatteryPanel 1.0 BatteryPanel.qml
+
+singleton Switcher 1.0 Switcher.qml
+WindowSwitcher 1.0 WindowSwitcher.qml
+singleton NightLight 1.0 NightLight.qml
+NightLightSettings 1.0 NightLightSettings.qml
+singleton IdleSleep 1.0 IdleSleep.qml
+IdleSleepButton 1.0 IdleSleepButton.qml
+IdleSleepSettings 1.0 IdleSleepSettings.qml
+singleton Activity 1.0 Activity.qml
+ActivityWidget 1.0 ActivityWidget.qml
+ActivityChart 1.0 ActivityChart.qml
+singleton CustomWidgetLayout 1.0 CustomWidgetLayout.qml
+WidgetLayoutEditor 1.0 WidgetLayoutEditor.qml
+WidgetLayoutCanvas 1.0 WidgetLayoutCanvas.qml
+singleton WidgetEditor 1.0 WidgetEditor.qml
+WidgetEditorScreen 1.0 WidgetEditorScreen.qml

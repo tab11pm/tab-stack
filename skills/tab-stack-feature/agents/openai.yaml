@@ -1,0 +1,4 @@
+interface:
+  display_name: "tab-stack Feature"
+  short_description: "Prepare tab-stack changes, branches and pull requests"
+  default_prompt: "Use $tab-stack-feature to prepare my completed feature in tab-stack on a fresh origin/main branch and provide the commit and PR outcome."

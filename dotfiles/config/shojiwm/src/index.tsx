@@ -59,7 +59,7 @@ import { layoutMeltEffect, stopLayoutMelts } from "./effect/layout-melt";
 import { stopWorkspaceWaves } from "./effect/workspace-wave";
 import { wallpaperWaveEffect, setWallpaperWave, stopWallpaperWave } from "./effect/live-wallpaper-wave";
 import { snowEffect, startSnow, stopSnow } from "./effect/snow";
-import { registerScreenShaderIpc, screenShaderPickerMapped, screenShaderPickerClosed, stopRetroScreen } from "./effect/retro-screen";
+import { registerScreenShaderIpc, screenShaderPickerMapped, screenShaderPickerClosed, stopRetroScreen, stopScreenEffects } from "./effect/retro-screen";
 import { aquariumMistEffect } from "./effect/aquarium";
 import { petKeepsDockVisible, registerMateEngineIpc } from "./mateengine";
 
@@ -121,7 +121,7 @@ COMPOSITOR.onDisable((event) => {
   stopMonitorPortals();
   stopWorkspaceWaves();
   stopWallpaperWave();
-  stopRetroScreen();
+  stopScreenEffects();
   if (event.isReloading) {
     const snapshot = HYBRID_WINDOW_MANAGER.snapshot();
     event.persist(HOT_RELOAD_WINDOW_MANAGER_STATE, snapshot);
@@ -385,7 +385,9 @@ COMPOSITOR.onDisable(() => {
 
 // A portal activated before login keeps its old environment and backend list.
 COMPOSITOR.process.once("session-portals", {
-  command: ["bash", `${scripts}/session-portals`],
+  command: COMPOSITOR.env.get("TAB_STACK_SESSION_TOKEN")
+    ? ["python3", `${scripts}/session_lifecycle.py`, "ready"]
+    : ["bash", `${scripts}/session-portals`],
   runPolicy: "once-per-session",
 });
 
@@ -416,6 +418,13 @@ COMPOSITOR.key.bind("screenshot-region", "Super+Shift+S", () => {
 COMPOSITOR.key.bind("screenshot-all", "Super+Shift+A", () => {
   COMPOSITOR.process.spawn({
     command: [`${scripts}/screenshot-all`],
+  });
+});
+
+COMPOSITOR.key.bind("activity-toggle", "Super+Ctrl+T", () => {
+  COMPOSITOR.process.spawn({
+    command: ["quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
+      "call", "activity", "toggle"],
   });
 });
 
@@ -452,6 +461,12 @@ COMPOSITOR.key.bind("wallpaper-picker", "Super+W", () => {
   COMPOSITOR.process.spawn({ command: [
     "quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
     "call", "wallpaper", "toggle", HYBRID_WINDOW_MANAGER.getCurrentMonitorName(),
+  ] });
+});
+COMPOSITOR.key.bind("widget-layout-editor", "Super+Ctrl+Shift+W", () => {
+  COMPOSITOR.process.spawn({ command: [
+    "quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
+    "call", "widgets", "toggle", HYBRID_WINDOW_MANAGER.getCurrentMonitorName(),
   ] });
 });
 COMPOSITOR.key.bind("shader-picker", "Super+Shift+W", () => {
@@ -525,6 +540,21 @@ for (let index = 1; index <= PERSISTENT_WORKSPACE_COUNT; index++) {
     scheduleWorkspaceBroadcast();
   });
 }
+
+// MRU window switcher. The overlay lives in the shell; here we only relay the
+// key events over the same socket the shell already listens on. Alt+Tab opens
+// on the previous window and walks the stack; the overlay commits when Alt is
+// released (it holds an exclusive keyboard grab while open).
+COMPOSITOR.key.bind("window-switcher-next", "Alt+Tab", () => {
+  WORKSPACE_IPC.broadcast("switcher.next", {});
+});
+COMPOSITOR.key.bind("window-switcher-previous", "Alt+Shift+Tab", () => {
+  WORKSPACE_IPC.broadcast("switcher.previous", {});
+});
+
+COMPOSITOR.key.bind("window-switcher-commit", "Alt", () => {
+  WORKSPACE_IPC.broadcast("switcher.commit", {});
+}, { on: "release" });
 
 let fpsCounter = false;
 COMPOSITOR.key.bind("fps", "Super+Ctrl+Shift+F", () => {

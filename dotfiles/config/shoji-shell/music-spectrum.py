@@ -1,27 +1,57 @@
 """24 spectrum bands from browser or MateEngine playback; never a microphone."""
 import json
+import cmath
+import math
 import os
 from pathlib import Path
 import selectors
 import signal
+import struct
 import subprocess
 import sys
 import time
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    np = None
 
 RATE, SIZE, BARS = 24000, 1024, 24
-WINDOW = np.hanning(SIZE)
+WINDOW = [0.5 - 0.5 * math.cos(2 * math.pi * i / (SIZE - 1)) for i in range(SIZE)]
+WINDOW_GAIN = sum(WINDOW) / 2
 # Keep 24 nonempty logarithmic bands, including low frequencies.
-EDGES = np.geomspace(1, SIZE // 2, BARS + 1).astype(int)
+EDGES = [int((SIZE // 2) ** (i / BARS)) for i in range(BARS + 1)]
 for i in range(1, len(EDGES)):
     EDGES[i] = max(EDGES[i], EDGES[i - 1] + 1)
 
 
+FFT_ORDER = [int(f"{i:010b}"[::-1], 2) for i in range(SIZE)]
+FFT_TWIDDLES = {
+    width: [cmath.exp(-2j * math.pi * i / width) for i in range(width // 2)]
+    for width in (2 ** i for i in range(1, 11))
+}
+
+
 def bands(samples):
-    power = np.abs(np.fft.rfft(np.nan_to_num(samples, nan=0, posinf=0, neginf=0) * WINDOW)) / (WINDOW.sum() / 2)
-    values = np.array([np.max(power[a:b]) for a, b in zip(EDGES[:-1], EDGES[1:])])
-    return np.clip((20 * np.log10(np.maximum(values, 1e-8)) + 65) / 65, 0, 1)
+    clean = [float(v) if math.isfinite(v) else 0.0 for v in samples]
+    windowed = [value * weight for value, weight in zip(clean, WINDOW)]
+    if np is not None:
+        power = (np.abs(np.fft.rfft(windowed)) / WINDOW_GAIN).tolist()
+    else:
+        # Radix-2 FFT keeps the widget usable without a system NumPy install.
+        spectrum = [complex(windowed[i]) for i in FFT_ORDER]
+        for width, twiddles in FFT_TWIDDLES.items():
+            half = width // 2
+            for start in range(0, SIZE, width):
+                for offset, twiddle in enumerate(twiddles):
+                    left = start + offset
+                    right = left + half
+                    even, odd = spectrum[left], twiddle * spectrum[right]
+                    spectrum[left], spectrum[right] = even + odd, even - odd
+        power = [abs(value) / WINDOW_GAIN for value in spectrum[:SIZE // 2 + 1]]
+    values = [max(power[a:b]) for a, b in zip(EDGES[:-1], EDGES[1:])]
+    return [max(0.0, min(1.0, (20 * math.log10(max(value, 1e-8)) + 65) / 65))
+            for value in values]
 
 
 def descendant(pid, owner):
@@ -111,7 +141,7 @@ def run(owner):
     current = None
     ambiguous = False
     selector = selectors.DefaultSelector()
-    silence = np.zeros(BARS)
+    silence = [0.0] * BARS
     next_scan = next_emit = 0
     track_cache = {}
     track_pid = 0
@@ -128,7 +158,7 @@ def run(owner):
             track_cache = mateengine_track(pid) if pid else {}
         print(json.dumps({"pid": current[2] if current else 0, "ambiguous": ambiguous,
                           "source": current[3] if current else "",
-                          "available": available, "bars": smoothed.round(3).tolist(),
+                          "available": available, "bars": [round(v, 3) for v in smoothed],
                           "track": track_cache}), flush=True)
 
     def close_capture(source):
@@ -168,7 +198,7 @@ def run(owner):
                             "--client-name=Shoji Music Spectrum", "--stream-name=Music spectrum",
                         ], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
                         captures[source] = {"process": capture, "buffer": bytearray(),
-                                            "smoothed": np.zeros(BARS), "last_audio": 0, "last_signal": 0}
+                                            "smoothed": [0.0] * BARS, "last_audio": 0, "last_signal": 0}
                         selector.register(capture.stdout, selectors.EVENT_READ, source)
             events = selector.select(timeout=0.1)
             for key, _ in events:
@@ -180,13 +210,14 @@ def run(owner):
                 buffer = state["buffer"]
                 buffer.extend(chunk)
                 while len(buffer) >= SIZE * 4:
-                    samples = np.frombuffer(bytes(buffer[:SIZE * 4]), dtype="<f4")
+                    samples = struct.unpack(f"<{SIZE}f", buffer[:SIZE * 4])
                     del buffer[:SIZE * 4]
                     levels = bands(samples)
                     state["last_audio"] = time.monotonic()
-                    if np.any(levels > 0):
+                    if any(value > 0 for value in levels):
                         state["last_signal"] = state["last_audio"]
-                    state["smoothed"][:] = np.maximum(levels, state["smoothed"] * 0.78)
+                    state["smoothed"][:] = [max(value, previous * 0.78)
+                                            for value, previous in zip(levels, state["smoothed"])]
             now = time.monotonic()
             responsive = [source for source, state in captures.items() if now - state["last_audio"] < 1]
             # An uncorked stream can be silent. Hold activity briefly across beats.
@@ -211,11 +242,11 @@ def run(owner):
 
 if __name__ == "__main__":
     if sys.argv[1:] == ["--self-check"]:
-        assert np.all(bands(np.zeros(SIZE)) == 0)
-        low = bands(np.sin(2 * np.pi * 100 * np.arange(SIZE) / RATE) * 0.5)
-        high = bands(np.sin(2 * np.pi * 5000 * np.arange(SIZE) / RATE) * 0.5)
-        assert len(low) == BARS and low.argmax() < high.argmax()
-        assert np.isfinite(bands(np.full(SIZE, np.nan))).all()
+        assert all(value == 0 for value in bands([0.0] * SIZE))
+        low = bands([math.sin(2 * math.pi * 100 * i / RATE) * 0.5 for i in range(SIZE)])
+        high = bands([math.sin(2 * math.pi * 5000 * i / RATE) * 0.5 for i in range(SIZE)])
+        assert len(low) == BARS and low.index(max(low)) < high.index(max(high))
+        assert all(math.isfinite(value) for value in bands([math.nan] * SIZE))
         assert descendant(os.getpid(), os.getpid()) and not descendant(0, os.getpid())
         print("Spectrum: silence, frequency separation and process ownership OK")
     elif sys.argv[1:] == ["--auto"] or (len(sys.argv) == 2 and sys.argv[1].isdigit() and int(sys.argv[1]) > 1):

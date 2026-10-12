@@ -168,6 +168,7 @@ Scope {
             anchors.right: parent.right; anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
             spacing: 8
+            IdleSleepButton {}
             ActionButton {
                 id: notificationButton
                 hint: "Уведомления: " + Notifications.count + (Notifications.quiet ? " · Не беспокоить" : "")

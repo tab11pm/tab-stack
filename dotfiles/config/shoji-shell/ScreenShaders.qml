@@ -43,6 +43,8 @@ Singleton {
         previewWorker.running = false;
     }
     function toggle(outputName) {
+        if (WidgetEditor.targetOutput !== "" && WidgetEditor.busy) return;
+        WidgetEditor.cancel();
         if (targetOutput !== "") { cancel(); return; }
         if (!Quickshell.screens.some(screen => screen.name === outputName)) return;
         Wallpapers.cancel();

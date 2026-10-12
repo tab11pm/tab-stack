@@ -81,3 +81,9 @@ Ghostty is the terminal target for launcher commands and the optional Codex sess
 chooser. The desktop session widget copies resume commands to the clipboard. System
 applications, browser profiles, network credentials, model/provider settings and
 GPU Screen Recorder preferences are outside the distribution.
+
+The [October 12 source update](update-2026-10-12.md) adds local activity accounting,
+night-filter IPC, idle lock/suspend control, MRU switching and a persisted widget
+library. Library snapshots retain outgoing widget placements during transitions.
+The optional [session wrapper](session.md) owns its compositor and a scoped
+systemd target while the compositor continues to supervise shell and polkit.

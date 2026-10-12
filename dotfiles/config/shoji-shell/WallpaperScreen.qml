@@ -53,12 +53,13 @@ Scope {
         mask: Region {
             item: weatherLoader.item ? weatherLoader.item.attributionItem : null
             Region { item: githubLoader.active && githubLoader.enabled ? githubLoader : null }
+            Region { item: deepseekLoader.active && deepseekLoader.enabled ? deepseekLoader : null }
+            Region { item: activityLoader.active && activityLoader.enabled ? activityLoader : null }
             Region { item: profileLoader.active && profileLoader.enabled ? profileLoader : null }
             Region { item: sessionsLoader.active && sessionsLoader.enabled ? sessionsLoader : null }
             Region { item: nekoLoader.active && nekoLoader.enabled ? nekoLoader : null }
             Region { item: homeLoader.active && homeLoader.enabled ? homeLoader : null }
             Region { item: musicLoader.active && musicLoader.enabled && musicLoader.item ? musicLoader.item.controlsItem : null }
-            Region { item: deepseekLoader.active && deepseekLoader.enabled ? deepseekLoader : null }
         }
         WidgetWaveLoader {
             id: homeLoader
@@ -66,14 +67,23 @@ Scope {
             sourceComponent: HomeZone { shell: root.shell; output: root.output }
             // Keep the composition inside the usable desktop on smaller outputs.
             scale: Math.min(1, (root.output.width - 32) / 852, (root.output.height - 152) / 690)
-            transformOrigin: Item.Center
+            transformOrigin: custom ? Item.TopLeft : Item.Center
         }
         WidgetWaveLoader {
             id: gamingHomeLoader
             widgetId: "gaming-home"; output: root.output; transition: wallpaperTransition
             sourceComponent: GamingHomeZone { shell: root.shell }
             scale: Math.max(0, Math.min(1, (root.output.width - 32) / 1468, (root.output.height - 152) / 420))
-            transformOrigin: Item.Center
+            transformOrigin: custom ? Item.TopLeft : Item.Center
+        }
+        WidgetWaveLoader {
+            id: activityLoader
+            widgetId: "activity"; output: root.output; transition: wallpaperTransition
+            readonly property bool combined: !custom && placement.vertical === "top"
+            fits: !combined || (root.output.width >= 1132 && root.output.height >= 1020)
+            scale: combined ? 1 : Math.max(0, Math.min(1, (root.output.width - 32) / 420, (root.output.height - 152) / 630))
+            transformOrigin: custom ? Item.TopLeft : Item.Center
+            sourceComponent: ActivityWidget {}
         }
         WidgetWaveLoader {
             id: limitsLoader
@@ -83,14 +93,18 @@ Scope {
         WidgetWaveLoader {
             id: musicLoader
             widgetId: "music"; output: root.output; transition: wallpaperTransition
-            y: placement.above === "limits" ? limitsLoader.y - height - placement.y
-                : WidgetLayouts.verticalPosition(placement, root.output.height, height)
-            sourceComponent: MusicWidget {}
+            y: !custom && placement.above === "limits" ? limitsLoader.y - height - placement.y
+                : positionY()
+            sourceComponent: MusicWidget {
+                id: desktopPlayer
+                Component.onCompleted: root.shell.desktopMusic = desktopPlayer
+                Component.onDestruction: { if (root.shell.desktopMusic === desktopPlayer) root.shell.desktopMusic = null; }
+            }
         }
-        Loader {
+        WidgetWaveLoader {
             id: weatherLoader
-            anchors { left: parent.left; bottom: parent.bottom; margins: 16 }
-            active: false // Disabled by user; retain the widget for optional reuse.
+            widgetId: "weather"; output: root.output; transition: wallpaperTransition
+            legacyWeather: true
             sourceComponent: WeatherWidget {}
         }
         WidgetWaveLoader {
@@ -106,9 +120,9 @@ Scope {
         WidgetWaveLoader {
             id: sessionsLoader
             widgetId: "sessions"; output: root.output; transition: wallpaperTransition
-            y: placement.vertical === "center"
+            y: !custom && placement.vertical === "center"
                 ? (limitsLoader.y + limitsLoader.height + deepseekLoader.y - height) / 2
-                : WidgetLayouts.verticalPosition(placement, root.output.height, height)
+                : positionY()
             sourceComponent: SessionResumeWidget {}
         }
         WidgetWaveLoader {
@@ -118,23 +132,23 @@ Scope {
             readonly property real gapTop: WidgetLayouts.verticalPosition(WidgetLayouts.placement("github", "default"), root.output.height, githubLoader.height) + githubLoader.height + 12
             readonly property real gapBottom: WidgetLayouts.verticalPosition(WidgetLayouts.placement("music", "default"), root.output.height, musicLoader.height) - 12
             readonly property real availableHeight: Math.max(0, gapBottom - gapTop)
-            height: Math.min(item ? item.implicitHeight : 0, availableHeight)
-            y: gapTop + (availableHeight - height) / 2
-            fits: availableHeight >= 180
+            height: custom ? (item ? item.implicitHeight : 0) : Math.min(item ? item.implicitHeight : 0, availableHeight)
+            y: custom ? positionY() : gapTop + (availableHeight - height) / 2
+            fits: custom || availableHeight >= 180
             sourceComponent: ProfileWidget {}
         }
         WidgetWaveLoader {
             id: nekoLoader
             widgetId: "neko"; output: root.output; transition: wallpaperTransition
-            readonly property real availableWidth: Math.max(0, musicLoader.active ? musicLoader.x - 28 : root.output.width - 32)
+            readonly property real availableWidth: Math.max(0, !custom && musicLoader.active ? musicLoader.x - 28 : root.output.width - 32)
             width: Math.max(0, Math.min(210, availableWidth, root.output.height - 84))
             height: width
-            x: musicLoader.active ? musicLoader.x - width - 12
+            x: custom ? positionX() : musicLoader.active ? musicLoader.x - width - 12
                 : WidgetLayouts.horizontalPosition(placement, root.output.width, width)
             // Compensate for the transparent margin below the resting paws.
-            y: root.output.height - height + height * 0.10 - 8
+            y: custom ? positionY() : root.output.height - height + height * 0.10 - 8
             fits: width >= 96
-            sourceComponent: NekoWidget { musicSource: musicLoader.active ? musicLoader.item : null }
+            sourceComponent: NekoWidget { musicSource: root.shell.desktopMusic }
         }
     }
     // Rear aquarium plane covers the widgets, while client windows remain above it.
@@ -232,6 +246,38 @@ Scope {
             interval: 3000
             running: shaderPicker.requested && shaderPickerLoader.status !== Loader.Ready
             onTriggered: ScreenShaders.cancel()
+        }
+    }
+    PanelWindow {
+        id: windowSwitcher
+        screen: root.output
+        anchors { top: true; bottom: true; left: true; right: true }
+        readonly property bool requested: Switcher.open && Switcher.targetOutput === root.output.name
+        visible: requested && switcherLoader.status === Loader.Ready && !!switcherLoader.item
+        exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.namespace: "shoji-switcher"
+        WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        surfaceFormat.opaque: false
+        color: "transparent"
+        onVisibleChanged: { if (visible) switcherLoader.forceActiveFocus(); }
+        Loader {
+            id: switcherLoader
+            anchors.fill: parent
+            focus: true
+            active: windowSwitcher.requested
+            sourceComponent: WindowSwitcher {}
+            onStatusChanged: {
+                if (status === Loader.Error) {
+                    console.warn("Could not load the window switcher");
+                    Switcher.cancel();
+                }
+            }
+        }
+        Timer {
+            interval: 3000
+            running: windowSwitcher.requested && switcherLoader.status !== Loader.Ready
+            onTriggered: Switcher.cancel()
         }
     }
 }
