@@ -1,91 +1,101 @@
-# tab-stack desktop dotfiles
+# tab-stack desktop
 
-Desktop configuration maintained in [tab11pm/tab-stack](https://github.com/tab11pm/tab-stack),
-derived from [howdeploy/kisa-stack](https://github.com/howdeploy/kisa-stack).
-This fork adds a custom Quickshell session lock with shared password entry across
-outputs and a [monitor settings panel](docs/monitors.md) with layout, primary output,
-refresh rate, scale, timed rollback and laptop/external brightness controls.
-The [October 12 update](docs/update-2026-10-12.md) adds night light, optional idle
-sleep, activity accounting, MRU switching and a widget layout editor, plus an
-[opt-in independent session](docs/session.md) and [optional greeter](docs/greeter.md).
-See [the locker guide](config/shoji-shell/lock/README.md).
+This is the desktop part of **tab-stack**, maintained by **Tabek** as part of
+**Alt Tabek**. I adapt my working environment around development, automation and
+AI-assisted workflows, and publish the configuration source here.
 
-A ShojiWM desktop with a Quickshell panel and dock, a customized Walker launcher,
-Catppuccin Mocha colors, animated wallpaper/widget presets, and GPU window effects.
-This directory contains the configuration sources, installation tools and a map
-of how the parts fit together. It is a sanitized source distribution, not a disk
-image or a backup of the author's home directory.
+The desktop combines ShojiWM, Quickshell, a customized Walker launcher and
+Catppuccin Mocha colors. It grew from howdeploy's kisa-stack configuration;
+its source ancestry and component licenses are retained in [NOTICE.md](NOTICE.md).
+The development repository is [tab11pm/tab-stack](https://github.com/tab11pm/tab-stack).
 
-**Use the [howdeploy/ShojiWM fork](https://github.com/howdeploy/ShojiWM/tree/main),
-branch `main`, at the revision in [sources.json](sources.json).** The
-configuration depends on fixes and APIs contributed by howdeploy. Fork `main`
-does not include them. See [fork and PR provenance](docs/fork.md).
+## What I am developing here
 
-## Start here
+The published configuration includes:
 
-1. Read [installation](docs/install.md): dependencies, pinned builds, preview,
-   installation, backups and recovery. Arch/Manjaro is the reference platform;
-   other Linux distributions need equivalent recent libraries and manual setup.
-2. Read [desktop configuration](docs/configuration.md): keys, monitors, wallpaper,
-   presets, icons, launcher and terminal.
-3. Enable only the [optional integrations](docs/widgets.md) you want, using your
-   own local CLI logins. They are off by default, even if a CLI is already logged in.
-4. For changes, use [architecture](docs/architecture.md), [shader guide](docs/shaders.md)
-   and [AGENTS.md](AGENTS.md).
+- A [custom session lock](config/shoji-shell/lock/README.md) with shared password
+  entry across outputs, plus an [opt-in managed session](docs/session.md).
+- [Monitor controls](docs/monitors.md) for layout, primary output, brightness,
+  refresh rate and scale, with a timed rollback for mode changes.
+- A widget layout editor, MRU window switcher, scheduled night filter,
+  optional idle sleep and local activity accounting. See the
+  [October 12 update](docs/update-2026-10-12.md).
+- [Music transport and seek controls, battery/power profiles and optional
+  account/session widgets](docs/widgets.md).
+- Wallpaper and layout transitions, screen effects and procedural shaders,
+  alongside the inherited desktop components.
 
-The first launch uses the **empty** preset and a bundled neutral SVG background.
-`Super+W` opens the wallpaper/preset picker. The original arrangements remain,
-joined by Home Zone and Gaming Home Zone; integrations stay absent until enabled.
-The UI currently retains the original Russian labels. Documentation is in English.
+The repository holds portable configuration source and installation tools.
+Personal wallpapers, credentials, account data and saved profiles stay local.
+The shell starts with the **empty** preset and a neutral SVG background.
+Account integrations and automatic sleep remain off until explicitly enabled.
 
-The [October update](docs/update-2026-10-04.md) adds live wallpaper transitions,
-screen shader selection, snow/aquarium effects, clock mascots and MateEngine IPC.
-It preserves the working desktop's source while replacing personal paths and
-defaults. The sanitized update has not had a new build or graphical check.
+## Get started
 
-The [widget update](docs/widgets.md) adds browser music transport/seek controls,
-battery and power profiles, DeepSeek API balance tiles in place of Vast.ai, and
-OpenCode sessions in place of Grok/Kimi. Account integrations remain opt-in.
+1. Read [installation](docs/install.md) for dependencies, pinned builds,
+   preview/install steps and recovery. Arch/Manjaro is the reference environment.
+2. Use [configuration](docs/configuration.md) for shortcuts, displays,
+   wallpaper/layout choices, terminal and launcher settings.
+3. Choose only the [optional integrations](docs/widgets.md) you need and supply
+   your own local authentication.
+4. For a separate login entry, follow [session setup](docs/session.md).
+   The [X11 greeter configuration](docs/greeter.md) is a separate system option.
+5. For source changes, read [architecture](docs/architecture.md), the
+   [shader guide](docs/shaders.md) and [AGENTS.md](AGENTS.md).
 
-## Categories
+Use the **howdeploy/ShojiWM integration revision pinned in
+[sources.json](sources.json)**. The config relies on APIs and fixes from that
+fork; a moving branch name or another upstream build is not an equivalent
+runtime. [Fork provenance](docs/fork.md) records which contributions came from
+upstream and howdeploy.
+
+## Source map
 
 | Directory | Contents |
 | --- | --- |
-| `config/shojiwm/` | TSX compositor configuration, window management, GLSL effects, session scripts |
-| `config/shoji-shell/` | QML panels, widgets, wallpaper picker, Qt shaders, data collectors |
-| `config/walker/`, `patches/walker/` | Launcher theme, tagged favorites, source patch for custom controls |
-| `config/elephant/` | Launcher providers and portable home-directory search |
-| `config/ghostty/` | Terminal colors, GTK styling and layout-independent keyboard shortcuts |
-| `config/xdg-desktop-portal/` | ShojiWM screen casting, wlr screenshots and GTK fallback |
+| `config/shojiwm/` | TSX compositor configuration, window management, GLSL effects and session helpers |
+| `config/shoji-shell/` | QML panels, widgets, editors, Qt shaders and local collectors |
+| `config/walker/`, `patches/walker/` | Launcher theme and source patch |
+| `config/elephant/` | Launcher providers and portable file search |
+| `config/ghostty/` | Terminal styling and keyboard shortcuts |
+| `config/xdg-desktop-portal/` | Portal backend selection |
+| `config/systemd/user/`, `system/` | Optional managed-session units and system configuration sources |
 | `data/icons/Shoji/` | Local SVG override theme inheriting Papirus Dark |
-| `bin/` | Optional Codex session chooser in Ghostty |
-| `scripts/` | Pinned builds, shader compilation, preview/install and publication checks |
-| `docs/`, `dependencies/` | Setup, behavior, dependencies, privacy and provenance |
+| `bin/` | Codex session chooser and managed-session launcher |
+| `scripts/` | Build, preview/install, migration and publication checks |
+| `docs/`, `dependencies/` | Setup, behavior, validation and provenance |
 
-## AI-assisted customization
+## Working with agents
 
-Two portable skills ship in the main skill catalog:
+Three desktop skills are available in the repository catalog:
 
-- [shojiwm](../skills/shojiwm/SKILL.md): understand and modify this desktop safely.
-- [shoji-shaders](../skills/shoji-shaders/SKILL.md): translate references into effects,
-  choose the correct shader pipeline and preserve animation lifecycle behavior.
+- [shojiwm](../skills/shojiwm/SKILL.md) — understand and modify the desktop.
+- [shoji-shaders](../skills/shoji-shaders/SKILL.md) — work with effects and
+  preserve their animation lifecycle.
+- [tab-stack-feature](../skills/tab-stack-feature/SKILL.md) — prepare selected
+  changes, validate them and publish to the tab-stack fork when requested.
 
-Install them with the existing repository installer, from the repository root:
+From the repository root:
 
 ```bash
 ./install.sh shojiwm --codex
 ./install.sh shoji-shaders --codex
-# --claude and --hermes are also supported by the installer.
+./install.sh tab-stack-feature --codex
 ```
 
-## Privacy and validation
+The installer also accepts `--claude` and `--hermes`; check each skill's
+requirements before using it in another environment.
 
-No credential stores, browser profiles, personal wallpapers, application launchers
-with private flags, session databases, account caches or local integration settings
-are shipped. No account is supplied by these dotfiles. Read [privacy](docs/privacy.md)
-before contributing changes or publishing screenshots.
+## Status and next steps
 
-[Validation](docs/validation.md) distinguishes source checks from a complete clean-machine
-desktop test. This is an experimental compositor stack; keep an existing working
-desktop session available while setting it up. [Attribution and licensing](NOTICE.md)
-apply to the individual components.
+This desktop is evolving around my own setup. The [validation record](docs/validation.md)
+distinguishes source checks and temporary-home installation from native graphical,
+cold-boot and clean-machine acceptance. Those remaining checks guide the next
+round of work; publication is not a claim of universal GPU/distribution support.
+
+The [October 4 source snapshot](docs/update-2026-10-04.md) documents the inherited
+wallpaper/effect baseline. Later updates and their validation are recorded
+separately, so an older result should not be read as proof of a newer change.
+
+Read [privacy](docs/privacy.md) before exporting files or screenshots. Issues
+and contributions belong in [tab-stack](https://github.com/tab11pm/tab-stack/issues).

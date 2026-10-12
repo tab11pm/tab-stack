@@ -1,45 +1,49 @@
-# Плагины
+# Сторонние инструменты для tab-stack
 
-Мой набор плагинов Claude Code: что стоит, откуда ставить и зачем.
+Здесь собран каталог внешних плагинов и проектов для работы с агентами, исследования и автоматизации. Он вырос из каталога kisa-stack. Это список возможных подключений, а не перечень того, что сейчас установлено у Tabek.
 
-Установка: сначала добавь маркетплейс, потом плагин из него:
+Мой подход к рабочей среде — подключать инструмент под конкретную задачу. Для настройки tab-stack не требуется устанавливать весь каталог. Актуальные способы установки, зависимости и условия доступа смотрите в репозитории выбранного проекта.
 
-```
-/plugin marketplace add <github-repo>
-/plugin install <имя>@<маркетплейс>
-```
+## Исследование и проверка работы
 
-## Активные
+| Проект | Назначение |
+| --- | --- |
+| [tavily-tools](https://github.com/fcakyon/claude-codex-settings) | Поиск и извлечение веб-контента через Tavily MCP |
+| [Codex plugin for Claude Code](https://github.com/openai/codex-plugin-cc) | Работа с Codex из Claude Code, включая делегирование и ревью |
+| [Agentation](https://github.com/benjitaylor/agentation) | Визуальные аннотации интерфейса для передачи замечаний агенту |
+| [gstack](https://github.com/garrytan/gstack) | Набор инструментов и скиллов для разработки, ревью и QA |
 
-- [tavily-tools](https://github.com/fcakyon/claude-codex-settings) — Веб-поиск и извлечение контента через Tavily MCP, с хуками и скиллами для правильного выбора инструмента. Ядро моего дип-ресерча. *(маркетплейс `claude-settings`)*
-- [statusline-tools](https://github.com/fcakyon/claude-codex-settings) — Кроссплатформенный статуслайн: контекст сессии, стоимость, общий 5-часовой лимит аккаунта и время до сброса. *(маркетплейс `claude-settings`)*
-- [codex](https://github.com/openai/codex-plugin-cc) — Официальный плагин OpenAI: гонять Codex прямо из Claude Code — code review и делегирование задач. Мой канал second opinion. *(маркетплейс `openai-codex`)*
-- [python-development](https://github.com/wshobson/agents) — Python-стек: скиллы и агенты под современный тулинг (uv, ruff, pydantic, FastAPI, Django). *(маркетплейс `claude-code-workflows`)*
-- [security-scanning](https://github.com/wshobson/agents) — SAST-анализ, сканирование зависимостей, OWASP Top 10, контейнерная безопасность, threat modeling. *(маркетплейс `claude-code-workflows`)*
-- [blockchain-web3](https://github.com/wshobson/agents) — Web3-разработка: смарт-контракты, DeFi, NFT, тестирование. *(маркетплейс `claude-code-workflows`)*
-- [claude-typing-ambient](https://github.com/howdeploy/Claude-typing-ambient) — Эмбиент-звук печатающей механической клавиатуры, пока Claude работает. Мой собственный плагин. *(маркетплейс `howdeploy-plugins`)*
-- [MTGA](https://github.com/howdeploy/MTGA) — Make Terminal Great Again: Claude отвечает в стиле трамповских твитов (CAPS, самовосхваление, TREMENDOUS!), плюс 100 спин-фраз RU/EN и опциональные трамп-коммиты. Код, файлы и честность не трогает — только текст в чате. Тумблеры `/mtga:on|off|status`, прежние настройки бэкапятся. Мой собственный плагин. *(маркетплейс `mtga`)*
-- [rust-analyzer-lsp](https://github.com/anthropics/claude-plugins-official) — LSP-интеграция rust-analyzer для работы с Rust. *(официальный маркетплейс Anthropic)*
-- [pyright-lsp](https://github.com/anthropics/claude-plugins-official) — LSP-интеграция Pyright для Python. *(официальный маркетплейс Anthropic)*
+## Организация разработки
 
-## Установлены, но выключены
+| Проект | Назначение |
+| --- | --- |
+| [Ponytail](https://github.com/dietrichgebert/ponytail) | Работа с задачами в существующей кодовой базе |
+| [gsd-core](https://github.com/open-gsd/gsd-core) | Разработка по спецификациям и организация этапов работы |
+| [rtk](https://github.com/rtk-ai/rtk) | Фильтрация вывода команд перед передачей агенту |
+| [Z.A.E.B.A.L.](https://github.com/howdeploy/Z.A.E.B.A.L) | Разбор ошибок агента |
+| [Choirboy Prompt](https://github.com/howdeploy/choirboy-prompt) | Контекст для использования командных инструментов |
+| [ObsidianDataWeave](https://github.com/howdeploy/ObsidianDataWeave) | Обработка заметок и ведение LLM Wiki; автор проекта — howdeploy |
 
-- [ccproxy-tools](https://github.com/fcakyon/claude-codex-settings) — Claude Code поверх кредитов GitHub Copilot, Gemini API, локальных ollama-моделей или любого LLM. *(маркетплейс `claude-settings`)*
-- [claudecode-sounds](https://github.com/newink/codingagents) — Звуковые уведомления, когда Claude Code ждет твоего внимания. *(маркетплейс `codingagents`)*
+Шаблоны [global-config](global-config/README.md) содержат опциональные блоки для Wiki и внешних инструментов. Их нужно адаптировать к своему процессу.
 
-## Наборы и тулзы вне маркетплейса
+## Инструменты под отдельные задачи
 
-Ставятся не через `/plugin install`, а своими установщиками.
+| Проект | Назначение |
+| --- | --- |
+| [statusline-tools](https://github.com/fcakyon/claude-codex-settings) | Статусная строка Claude Code |
+| [python-development](https://github.com/wshobson/agents) | Инструменты и агенты для Python-разработки |
+| [security-scanning](https://github.com/wshobson/agents) | Проверки безопасности кода и зависимостей |
+| [blockchain-web3](https://github.com/wshobson/agents) | Инструменты для Web3-разработки |
+| [rust-analyzer-lsp](https://github.com/anthropics/claude-plugins-official) | LSP для Rust |
+| [pyright-lsp](https://github.com/anthropics/claude-plugins-official) | LSP для Python |
+| [ccproxy-tools](https://github.com/fcakyon/claude-codex-settings) | Инструменты для альтернативных подключений моделей |
+| [Remotion](https://github.com/remotion-dev/remotion) | Создание видео средствами React |
 
-- [gstack](https://github.com/garrytan/gstack) — Сетап Garry Tan для Claude Code: большой набор скиллов — code review и QA с реальным браузером, design-пайплайны, plan-ревью (CEO / eng / design / DX), second opinion от Codex, ship/deploy-воркфлоу. Ставится одной вставкой в Claude Code (нужен Bun). Основа моего скиллового стека.
-- [gsd-core](https://github.com/open-gsd/gsd-core) — Git. Ship. Done: spec-driven фреймворк фазовой разработки с context engineering — тяжелый ресерч, планирование и исполнение уходят в fresh-context сабагентов, основная сессия остается чистой. Мульти-рантайм (Claude Code, Codex, Gemini CLI, Cursor и др.), установка: `npx @opengsd/gsd-core@latest`. *(Переименованный Redux — форк комьюнити после скандала с автором оригинального GSD.)* У меня живет в Codex (`gsd-*` команды).
-- [rtk](https://github.com/rtk-ai/rtk) — RTK (Rust Token Killer): CLI-прокси, который фильтрует и сжимает вывод команд до попадания в контекст LLM — экономия 60–90% токенов. Один Rust-бинарь, 100+ поддержанных команд, <10 мс оверхеда. Интеграции: Claude Code (PreToolUse-хук, `rtk init -g`), Codex (`rtk init -g --codex` → AGENTS.md + RTK.md — у меня подключен именно так), Cursor, Gemini CLI и др.
+## Звук и оформление работы агента
 
-- [ObsidianDataWeave](https://github.com/howdeploy/ObsidianDataWeave) — Мой пайплайн обработки заметок Obsidian: enrich/atomize по Zettelkasten, импорт .docx и ведение LLM Wiki (`wiki_init` / `wiki_ingest` / `wiki_compile` / `wiki_lint`; единственный writer — `vault_writer.py`). Тот самый контур долговременной памяти, который якорят хуки из [global-config](global-config) — вики как source of truth, а не авто-заметки. В комплекте — скилл-адаптер для Claude Code.
+- [claude-typing-ambient](https://github.com/howdeploy/Claude-typing-ambient) — фоновые звуки клавиатуры; плагин howdeploy.
+- [MTGA](https://github.com/howdeploy/MTGA) — стилизация ответов Claude Code; плагин howdeploy.
+- [claudecode-sounds](https://github.com/newink/codingagents) — звуковые уведомления.
+- [claude-code-spinner](https://github.com/i1kazantsev/claude-code-spinner) — набор фраз для индикатора работы Claude Code.
 
-- [Agentation](https://github.com/benjitaylor/agentation) — Визуальный фидбек для агентов: кликаешь по элементу на странице, пишешь заметку — и агент получает структурный вывод (CSS-селектор, путь к исходнику, дерево React-компонентов) вместо описания «синяя кнопка в сайдбаре». Со второй версии — MCP-интеграция: агент видит аннотации напрямую, уточняет и помечает их решенными. У меня это QA-звено web-dev-пайплайна. Документация: [agentation.com](https://www.agentation.com).
-- [Remotion](https://github.com/remotion-dev/remotion) — Программные видео в React: композиция — это компонент, анимация — код, рендер из CLI. Весь моушн для роликов делаю на нем: сцены версионируются в git, а Claude Code пишет и правит видео как обычный код. В моей вики под Remotion отдельный спейс с паттернами анимаций, аудио-стеком и настройками рендера под YouTube.
-
-## Фразы кабанчика
-
-- [claude-code-spinner](https://github.com/i1kazantsev/claude-code-spinner) — «Замена фраз спиннера клод-кода для уважаемых вайбкодеров»: вместо `Thinking...` / `Pondering...` крутится «Обкашляю вопросик», «По красоте все сделаем» и еще 90+ фраз. Технически это не плагин, а пак `spinnerVerbs`, который вливается в `~/.claude/settings.json` (командой `/install-spinner` из репо или руками). Бонусом — Stop-хук «Вопросик на тормозах» со звуком.
+Эти проекты разрабатывают их собственные авторы. Упоминание в tab-stack не означает авторство Tabek, включение их кода в репозиторий или подтверждение совместимости каждой версии.

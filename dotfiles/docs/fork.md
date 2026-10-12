@@ -1,4 +1,17 @@
-# Fork and contribution provenance
+# Source ancestry and compositor provenance
+
+## tab-stack and its base
+
+**tab-stack** is Tabek's desktop and AI-tooling project under the **Alt Tabek**
+identity, maintained in [tab11pm/tab-stack](https://github.com/tab11pm/tab-stack).
+It began from [howdeploy/kisa-stack](https://github.com/howdeploy/kisa-stack).
+Current setup instructions and configuration source belong to tab-stack.
+
+The compositor fork is a separate dependency. The upstream contributions and
+snapshot history below describe work by their respective authors, including
+howdeploy; they are not presented as contributions by Tabek. Later tab-stack
+configuration changes are described in its update guides and validation record.
+Component licenses and attribution remain in [NOTICE.md](../NOTICE.md).
 
 ## Current desktop snapshot (2026-10-04)
 
