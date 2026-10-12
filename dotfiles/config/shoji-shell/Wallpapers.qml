@@ -16,6 +16,12 @@ Singleton {
     property string layoutId: "empty"
     property var document: ({ outputs: {} })
     property var pendingDocument: null
+    property bool pendingLibraryPublication: false
+    property bool pendingLayoutActivation: false
+    property bool writeFailed: false
+    property var loadedDocument: null
+    signal layoutActivated()
+    signal layoutActivationFailed()
     property bool ready: false
     property bool saving: false
     property string pendingOutput: ""
@@ -57,7 +63,8 @@ Singleton {
             && !liveFor(name) && (frameFor(name) || {}).span && current(name) === current(outputName));
     }
     function toggle(outputName) {
-        if (LiveWallpapers.busy) return;
+        if (LiveWallpapers.busy || (WidgetEditor.targetOutput !== "" && WidgetEditor.busy)) return;
+        WidgetEditor.cancel();
         if (targetOutput !== "") {
             acceptRequested();
             return;
@@ -126,6 +133,8 @@ Singleton {
         if (liveSelection) layers.push(Object.assign({}, liveSelection, {
             mode: frame && frame.span ? "span" : "single", outputs: affected, visibleOutputs: affected
         }));
+        pendingLibraryPublication = false;
+        pendingLayoutActivation = false;
         pendingOutput = outputName;
         const nextDocument = Object.assign({}, document, { outputs: next, frames: frames, layout: selected.id,
             live: layers.length ? { layers: layers } : null });
@@ -137,13 +146,41 @@ Singleton {
             nextDocument.imageCrops = Object.assign({}, document.imageCrops || {});
             nextDocument.imageCrops[url.toString()] = frame.crop;
         }
-        if (JSON.stringify(document) === JSON.stringify(nextDocument)) { cancel(); return; }
+        if (JSON.stringify(document) === JSON.stringify(nextDocument)) {
+            if (pendingLibraryPublication) saveDocument(nextDocument);
+            else cancel();
+            return;
+        }
         if (nextDocument.live || LiveWallpapers.active || document.live || (frame && frame.span)
                 || (frameFor(outputName) && frameFor(outputName).span)) {
             LiveWallpapers.begin(nextDocument);
             return;
         }
         saveDocument(nextDocument);
+    }
+    function activateLayout(id, publishLibrary = false) {
+        if (!ready || saving || LiveWallpapers.busy) return false;
+        const candidates = publishLibrary && CustomWidgetLayout.savedDocument
+            ? CustomWidgetLayout.savedDocument.layouts : WidgetLayouts.layouts;
+        if (!candidates.some(value => value.id === id)) return false;
+        pendingLibraryPublication = publishLibrary;
+        pendingLayoutActivation = true;
+        pendingOutput = targetOutput;
+        saveDocument(Object.assign({}, document, { layout: id }));
+        return true;
+    }
+    function finishLoading() {
+        if (!loadedDocument || !CustomWidgetLayout.ready || ready) return;
+        document = loadedDocument;
+        outputs = document.outputs;
+        layoutId = WidgetLayouts.layout(document.layout).id;
+        loadedDocument = null;
+        ready = true;
+        error = "";
+    }
+    Connections {
+        target: CustomWidgetLayout
+        function onReadyChanged() { root.finishLoading(); }
     }
     function saveDocument(nextDocument) {
         if (saving) return;
@@ -153,22 +190,36 @@ Singleton {
         try {
             const serialized = JSON.stringify(pendingDocument, null, 4) + "\n";
             // FileView skips identical writes and does not emit saved for them.
-            if (state.text() === serialized) saveCompleted();
-            else state.setText(serialized);
+            // FileView retains the failed payload in its cache. A harmless extra
+            // newline forces a real retry instead of treating cached text as saved.
+            const cached = state.text();
+            if (cached === serialized && !writeFailed) saveCompleted();
+            else state.setText(writeFailed && cached === serialized ? serialized + "\n" : serialized);
         } catch (failure) {
             saveFailed();
         }
     }
     function saveFailed() {
+        writeFailed = true;
+        const activating = pendingLayoutActivation;
+        pendingLayoutActivation = false;
+        pendingLibraryPublication = false;
         pendingDocument = null;
         pendingOutput = "";
         saving = false;
         error = "Не удалось сохранить выбор. Проверь доступ к wallpapers.json и повтори Enter.";
         LiveWallpapers.saveFailed();
+        if (activating) layoutActivationFailed();
     }
     function saveCompleted() {
         if (!saving || !pendingDocument) return;
+        writeFailed = false;
+        const activating = pendingLayoutActivation;
+        const publishing = pendingLibraryPublication;
+        pendingLayoutActivation = false;
+        pendingLibraryPublication = false;
         try {
+            if (publishing) CustomWidgetLayout.publish();
             document = pendingDocument;
             outputs = document.outputs;
             layoutId = WidgetLayouts.layout(document.layout).id;
@@ -180,6 +231,7 @@ Singleton {
             pendingOutput = "";
         }
         LiveWallpapers.saved();
+        if (activating) layoutActivated();
     }
     Timer {
         interval: 10000
@@ -255,17 +307,14 @@ Singleton {
                         || !saved.outputs || typeof saved.outputs !== "object" || Array.isArray(saved.outputs)
                         || !Object.values(saved.outputs).every(url => typeof url === "string"))
                     throw new Error("Invalid wallpaper state");
-                root.document = saved;
-                root.outputs = saved.outputs;
-                root.layoutId = WidgetLayouts.layout(saved.layout).id;
-                root.ready = true;
-                root.error = "";
+                root.loadedDocument = saved;
+                root.finishLoading();
             } catch (error) {
                 root.error = "Не удалось прочитать wallpapers.json. Исправь файл и перезагрузи оболочку.";
             }
         }
         onLoadFailed: error => {
-            if (error === FileViewError.FileNotFound) root.ready = true;
+            if (error === FileViewError.FileNotFound) { root.loadedDocument = { outputs: {}, layout: "empty" }; root.finishLoading(); }
             else root.error = "Не удалось прочитать сохранённые обои";
         }
         onSaved: root.saveCompleted()

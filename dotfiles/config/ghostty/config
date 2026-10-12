@@ -48,7 +48,7 @@
 # # Just for example:
 # resize-overlay-duration = 4s 200ms
 
-command = /usr/bin/zsh
+command = /usr/bin/bash
 theme = Catppuccin Mocha
 minimum-contrast = 4.5
 font-family = monospace
@@ -68,10 +68,10 @@ cursor-style-blink = true
 # Scrollback ~50k строк форматированного CLI вывода (значение в байтах, лениво аллоцируется)
 scrollback-limit = 50000000
 
-# Shell integration: автоматически инжектится для zsh при command=/usr/bin/zsh.
+# Shell integration: автоматически инжектится для bash при command=/usr/bin/bash.
 # Features: cursor (форма курсора по prompt mode), title (автозаголовок), sudo (TERM в sudo),
 # ssh-env (COLORTERM/TERM_PROGRAM по ssh), ssh-terminfo (кэш xterm-ghostty terminfo на remote).
-shell-integration = zsh
+shell-integration = bash
 shell-integration-features = no-cursor,sudo,title,ssh-env,ssh-terminfo,path
 
 # Layout-independent keybinds for EN/RU

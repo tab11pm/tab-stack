@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=tab-stack
+Comment=Independent ShojiWM desktop session
+Type=Application
+DesktopNames=ShojiWM
+Exec=@TAB_STACK_SESSION_EXEC@

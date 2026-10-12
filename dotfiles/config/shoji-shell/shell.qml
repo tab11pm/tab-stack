@@ -11,12 +11,24 @@ import Quickshell.Wayland
 
 ShellRoot {
     id: root
+    // Instantiate the scheduler even when the system panel has never been opened.
+    readonly property bool nightLightReady: NightLight.loaded
+    // Monitor inactivity even when the control centre is closed.
+    readonly property bool idleSleepReady: IdleSleep.loaded
+    readonly property bool activityReady: Activity.loaded
+    IpcHandler {
+        target: "activity"
+        function toggle(): void { Activity.toggle(); }
+        function setLocked(value: bool): void { Activity.setLocked(value); }
+        function status(): string { return JSON.stringify({ ready: Activity.loaded, manualPaused: Activity.manualPaused, tracking: Activity.tracking, status: Activity.status, error: Activity.error }); }
+    }
     property string primaryOutputName: WidgetLayouts.primaryOutputName
     readonly property var primaryOutput: Quickshell.screens.find(screen => screen.name === primaryOutputName)
         || Quickshell.screens[0] || null
     property string panelScreen: ""
     property string panelPage: ""
     property bool panelReady: false
+    property var desktopMusic: null
     property var stats: ({})
     property double statsAt: 0
     property bool statsReady: false
@@ -34,12 +46,33 @@ ShellRoot {
     IpcHandler {
         target: "wallpaper"
         function toggle(outputName: string): void { Wallpapers.toggle(outputName); }
+        function open(): void {
+            if (Wallpapers.targetOutput !== "") return;
+            const screen = root.primaryOutput;
+            if (screen) Wallpapers.toggle(screen.name);
+        }
         function cancel(): void { Wallpapers.cancel(); }
         function status(): string {
             return JSON.stringify({ ready: Wallpapers.ready, saving: Wallpapers.saving,
                 busy: LiveWallpapers.busy, active: LiveWallpapers.active,
-                pickerRequested: Wallpapers.targetOutput !== "", error: Wallpapers.error });
+                pickerRequested: Wallpapers.targetOutput !== "", error: Wallpapers.error,
+                targetOutput: Wallpapers.targetOutput, primaryOutput: root.primaryOutputName,
+                outputs: Quickshell.screens.map(screen => screen.name) });
         }
+    }
+    IpcHandler {
+        target: "widgets"
+        function toggle(outputName: string): void { WidgetEditor.toggle(outputName); }
+        function cancel(): void { WidgetEditor.cancel(); }
+        function status(): string {
+            return JSON.stringify({ ready: CustomWidgetLayout.ready, busy: WidgetEditor.busy,
+                targetOutput: WidgetEditor.targetOutput, layouts: WidgetLayouts.layouts.length,
+                error: CustomWidgetLayout.error });
+        }
+    }
+    Connections {
+        target: WidgetEditor
+        function onTargetOutputChanged(): void { if (WidgetEditor.targetOutput !== "") root.panelPage = ""; }
     }
     Connections {
         target: Wallpapers
@@ -50,6 +83,8 @@ ShellRoot {
         function onTargetOutputChanged(): void { if (ScreenShaders.targetOutput !== "") root.panelPage = ""; }
     }
     function toggle(screenName, page) {
+        if (WidgetEditor.targetOutput !== "" && WidgetEditor.busy) return;
+        WidgetEditor.cancel();
         if (panelScreen === screenName && panelPage === page) {
             panelPage = "";
         } else {
@@ -74,7 +109,7 @@ ShellRoot {
         stdinEnabled: true
         onRunningChanged: { if (!running) root.statsReady = false; }
         running: (root.panelPage === "controls" && root.panelReady)
-            || (Wallpapers.ready && WidgetLayouts.enabledOn("home", root.primaryOutput))
+            || (Wallpapers.ready && (!!WidgetLayouts.outputFor("home") && Settings.enabled("home")))
             || (Wallpapers.ready && !!WidgetLayouts.outputFor("gaming-home"))
         command: ["python3", Qt.resolvedUrl("system-stats.py").toString().replace("file://", "")]
         stdout: SplitParser {
@@ -97,6 +132,13 @@ ShellRoot {
             required property var modelData
             output: modelData
             shell: root
+        }
+    }
+    Variants {
+        model: Quickshell.screens
+        WidgetEditorScreen {
+            required property var modelData
+            output: modelData
         }
     }
     HermesHud {

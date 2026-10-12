@@ -18,6 +18,11 @@ Item {
     signal prepareTransition()
     property string displayedLayoutId: ""
     property string transitionLayoutId: ""
+    property var displayedLayout: ({ id: "empty", widgets: {} })
+    property var transitionLayout: ({ id: "empty", widgets: {} })
+    property int displayedRevision: -1
+    property int transitionRevision: -1
+    readonly property int requestedRevision: CustomWidgetLayout.revision
     property real progress: 0
     readonly property var front: firstIsFront ? first : second
     readonly property var back: firstIsFront ? second : first
@@ -26,6 +31,10 @@ Item {
         if (!LiveWallpapers.covered) return;
         displayedLayoutId = Wallpapers.layoutId;
         transitionLayoutId = Wallpapers.layoutId;
+        displayedLayout = JSON.parse(JSON.stringify(WidgetLayouts.current));
+        transitionLayout = displayedLayout;
+        displayedRevision = requestedRevision;
+        transitionRevision = requestedRevision;
         loadRequested();
     }
 
@@ -34,7 +43,7 @@ Item {
         if (LiveWallpapers.busy && !LiveWallpapers.covered) return;
         if (hasWallpaper && front.source.toString() === requestedSource
                 && JSON.stringify(front.framing) === JSON.stringify(requestedFrame)
-                && displayedLayoutId === Wallpapers.layoutId) return;
+                && displayedLayoutId === Wallpapers.layoutId && displayedRevision === requestedRevision) return;
         back.framing = requestedFrame;
         back.source = requestedSource;
         maybeStart();
@@ -42,8 +51,10 @@ Item {
     function maybeStart() {
         if (!initialized || transitioning || preparing || back.status !== Image.Ready
                 || back.source.toString() !== requestedSource) return;
-        if (Wallpapers.targetOutput === outputName) return;
+        if (Wallpapers.targetOutput === outputName || WidgetEditor.targetOutput === outputName) return;
         transitionLayoutId = Wallpapers.layoutId;
+        transitionLayout = JSON.parse(JSON.stringify(WidgetLayouts.current));
+        transitionRevision = requestedRevision;
         if (LiveWallpapers.covered || !hasWallpaper || front.status !== Image.Ready || wave.status === ShaderEffect.Error) {
             finish();
             return;
@@ -78,6 +89,8 @@ Item {
         firstIsFront = !firstIsFront;
         hasWallpaper = true;
         displayedLayoutId = transitionLayoutId;
+        displayedLayout = transitionLayout;
+        displayedRevision = transitionRevision;
         transitioning = false;
         previous.source = "";
         // A choice made during the wave becomes the next transition.
@@ -86,11 +99,16 @@ Item {
     // Wallpaper and layout are committed together; start after both have changed.
     onRequestedSourceChanged: Qt.callLater(loadRequested)
     onRequestedFrameChanged: Qt.callLater(loadRequested)
+    onRequestedRevisionChanged: Qt.callLater(loadRequested)
     Component.onCompleted: { initialized = true; loadRequested(); }
     Connections {
         target: Wallpapers
         function onReadyChanged(): void { root.loadRequested(); }
         function onLayoutIdChanged(): void { Qt.callLater(root.loadRequested); }
+        function onTargetOutputChanged(): void { root.maybeStart(); }
+    }
+    Connections {
+        target: WidgetEditor
         function onTargetOutputChanged(): void { root.maybeStart(); }
     }
     Connections {

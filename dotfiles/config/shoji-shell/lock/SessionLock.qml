@@ -79,10 +79,23 @@ Item {
         }
     }
     Timer { id: retryDelay; interval: 1500 }
+    Timer {
+        id: afterUnlock
+        // Give unlock_and_destroy a separate event-loop turn before restoring
+        // a display effect. This notification cannot unlock or authenticate.
+        interval: 100
+        onTriggered: {
+            if (keyboard.connected) {
+                keyboard.write(JSON.stringify({ id: "lock-night-light-resume", method: "night-light.resume" }) + "\n");
+                keyboard.flush();
+            }
+            Qt.quit();
+        }
+    }
     WlSessionLock {
         id: sessionLock
         onSecureStateChanged: {
-            if (secure) { confirmationTimeout.stop(); console.log("Shoji lock: secure"); }
+            if (secure) { confirmationTimeout.stop(); console.log("Shoji lock: secure"); activityPause.startDetached(); }
         }
         WlSessionLockSurface {
             id: surface
@@ -102,6 +115,15 @@ Item {
             }
         }
     }
+    // Best-effort status only; these calls never affect lock or authentication.
+    Process {
+        id: activityPause
+        command: ["quickshell", "ipc", "--path", Desktop.Settings.configHome + "/shoji-shell", "call", "activity", "setLocked", "true"]
+    }
+    Process {
+        id: activityResume
+        command: ["quickshell", "ipc", "--path", Desktop.Settings.configHome + "/shoji-shell", "call", "activity", "setLocked", "false"]
+    }
     PamContext {
         id: pam
         config: Quickshell.env("SHOJI_LOCK_PAM_SERVICE")
@@ -118,8 +140,8 @@ Item {
             if (result === PamResult.Success && root.responded && root.secure) {
                 root.requested = false;
                 sessionLock.locked = false;
-                // Let the event loop flush unlock_and_destroy before exiting.
-                Qt.callLater(Qt.quit);
+                activityResume.startDetached();
+                afterUnlock.start();
             } else {
                 root.authenticationFailed(root.pamError || (result === PamResult.MaxTries
                     ? "Слишком много попыток. Подождите и повторите."

@@ -9,7 +9,7 @@ FocusScope {
     required property string outputName
     focus: true
     readonly property real expandedWidth: Math.min(620, width * 0.56)
-    readonly property real cardHeight: Math.min(388, height * 0.40, Math.max(100, height - layoutHeight - (animatedMode ? 220 : 270)))
+    readonly property real cardHeight: Math.min(388, height * 0.40, Math.max(100, height - layoutHeight - (animatedMode ? 252 : 302)))
     readonly property real layoutHeight: Math.min(220, height * 0.23)
     readonly property real layoutWidth: Math.min(620, width * 0.72)
     readonly property var previewScreens: Quickshell.screens.slice().sort((a, b) => a.x - b.x || a.y - b.y)
@@ -28,9 +28,9 @@ FocusScope {
     readonly property string selectedWallpaper: !animatedMode && carousel.currentIndex >= 0 && carousel.currentIndex < carousel.count
         ? (WallpaperGroups.images[carousel.currentIndex] || {}).fileUrl || "" : ""
     readonly property var widgetLabels: ({ limits: "Лимиты AI", sessions: "Сессии", neko: "Котик",
-        github: "GitHub", hermes: "Hermes", deepseek: "DeepSeek API", music: "Музыка", profile: "Профиль", home: "Home Zone", "gaming-home": "Home Zone · Gaming" })
+        github: "GitHub", hermes: "Hermes", deepseek: "DeepSeek API", music: "Музыка", weather: "Погода", activity: "Время за ПК", profile: "Профиль", home: "Home Zone", "gaming-home": "Home Zone · Gaming" })
     readonly property var widgetIcons: ({ limits: "session-codex", sessions: "keyboard", github: "git-pull-request",
-        hermes: "message-circle", deepseek: "cloud", music: "headphones", profile: "profile" })
+        hermes: "message-circle", deepseek: "cloud", music: "headphones", activity: "home-cpu", profile: "profile" })
     readonly property int activeRow: Wallpapers.pickerRow
     property string chosenWallpaper: ""
     property string chosenStill: ""
@@ -199,6 +199,7 @@ FocusScope {
         function onAcceptRequested(): void { root.applySelected(); }
         function onReadyChanged(): void { root.selectSaved(); root.selectLayout(); }
         function onLayoutIdChanged(): void { Qt.callLater(root.selectLayout); }
+        function onLayoutActivated(): void { root.layoutTouched = false; Qt.callLater(root.selectLayout); }
     }
     Keys.onEscapePressed: event => {
         if (groupEditor.visible) {
@@ -265,6 +266,14 @@ FocusScope {
     }
     MouseArea { anchors.fill: parent; onClicked: Wallpapers.cancel() }
     WallpaperGroupEditor { id: groupEditor; parent: root }
+    UiText {
+        objectName: "selectedLayoutName"
+        anchors { horizontalCenter: parent.horizontalCenter; bottom: parent.bottom; bottomMargin: 24 }
+        width: Math.min(640, root.width - 40)
+        horizontalAlignment: Text.AlignHCenter
+        text: (WidgetLayouts.layouts[layouts.currentIndex] || {}).name || "Раскладка"
+        color: Theme.muted; font.pixelSize: 12
+    }
     RowLayout {
         id: groupBar
         anchors { horizontalCenter: parent.horizontalCenter; bottom: kinds.top; bottomMargin: 10 }
@@ -664,9 +673,11 @@ FocusScope {
                                 readonly property real gamingScale: Math.max(0, Math.min(1, (monitor.modelData.width - 32) / 1468, (monitor.modelData.height - 152) / 420))
                                 readonly property var targetOutput: WidgetLayouts.screenFor(entry.output)
                                 readonly property string outputName: targetOutput ? targetOutput.name : ""
+                                readonly property real activityScale: entry.vertical === "top" ? 1 : Math.max(0, Math.min(1, (monitor.modelData.width - 32) / 420, (monitor.modelData.height - 152) / 630))
                                 visible: outputName === monitor.modelData.name
-                                width: (modelData === "gaming-home" ? 1468 * gamingScale : modelData === "home" ? 852 * homeScale : modelData === "neko" ? 210 : modelData === "hermes" ? 480 : ["github", "sessions", "profile"].includes(modelData) ? 340 : 286) * monitor.ratio
-                                height: (modelData === "gaming-home" ? 420 * gamingScale : modelData === "home" ? 690 * homeScale : modelData === "neko" ? 210 : modelData === "hermes" ? 60 : modelData === "music" ? 120 : modelData === "github" ? 460 : modelData === "sessions" ? 350 : modelData === "profile" ? Math.min(410, Math.max(0, monitor.modelData.height - 688)) : 270) * monitor.ratio
+                                    && (modelData !== "activity" || entry.vertical !== "top" || (monitor.modelData.width >= 1132 && monitor.modelData.height >= 1020))
+                                width: (modelData === "activity" ? 420 * activityScale : modelData === "gaming-home" ? 1468 * gamingScale : modelData === "home" ? 852 * homeScale : modelData === "neko" ? 210 : modelData === "hermes" ? 480 : ["github", "sessions", "profile"].includes(modelData) ? 340 : 286) * monitor.ratio
+                                height: (modelData === "activity" ? 630 * activityScale : modelData === "gaming-home" ? 420 * gamingScale : modelData === "home" ? 690 * homeScale : modelData === "neko" ? 210 : modelData === "hermes" ? 60 : modelData === "music" ? 120 : modelData === "github" ? 460 : modelData === "sessions" ? 350 : modelData === "profile" ? Math.min(410, Math.max(0, monitor.modelData.height - 688)) : 270) * monitor.ratio
                                 x: WidgetLayouts.horizontalPosition(entry, monitor.modelData.width, width / monitor.ratio) * monitor.ratio
                                 y: (modelData === "profile"
                                     ? (528 + monitor.modelData.height - 136 - height / monitor.ratio) / 2

@@ -67,3 +67,8 @@ diff, hardcoded domains/commands, sample data and image provenance. Never commit
 raw machine files first and try to remove secrets in a later commit: history would
 already contain them. Do not include screenshots showing accounts, notifications,
 session titles, codes or balances in a public release without deliberate redaction.
+
+The October 12 export also excludes `night-light.json`, `idle-sleep.json`,
+`widget-layouts.json`, activity databases and backups. The installer preserves
+these shell profiles and leaves activity history outside the configuration tree.
+No local Hermes transport executable or endpoint is published.

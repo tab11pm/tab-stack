@@ -18,3 +18,9 @@ node_modules/
 .env.*
 !.env.example
 deepseek-api-key
+
+night-light.json
+idle-sleep.json
+widget-layouts.json
+activity.sqlite3*
+backups/

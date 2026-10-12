@@ -123,7 +123,7 @@ The author's Bluetooth recovery alias is not shipped because its exact device
 and privileged recovery actions are machine-specific.
 
 Ghostty's config retains the Mocha styling and physical-key EN/RU shortcuts. It
-expects zsh; change `command` and `shell-integration` together for another shell.
+expects Bash; change `command` and `shell-integration` together for another shell.
 The screenshot helper needs Flameshot, grim, Qt's `qtdiag6` and the portal setup.
 Brightness uses `brightnessctl` for internal displays and DDC/CI with `ddcutil`
 for external displays; grant access through your distribution's
@@ -136,3 +136,9 @@ under this compositor. Authme's contents recovered when the recorder was termina
 changing Authme's rendering flags had not helped. Hide the overlay when returning
 to applications. If input remains captured, finish recording and exit the recorder.
 No Authme workaround or recorder autostart is installed by this bundle.
+
+## October 12 controls
+
+See the [desktop update](update-2026-10-12.md) for the widget editor, Alt+Tab,
+local activity accounting, night filter, optional automatic sleep and screenshot
+fallback. See [session setup](session.md) for the separately installed login entry.

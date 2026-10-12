@@ -677,6 +677,9 @@ export class HybridWindowManager {
       return;
     }
     for (const workspace of this.workspaces.values()) {
+      if (liveMonitors.has(workspace.monitor)) workspace.syncOutputGeometry();
+    }
+    for (const workspace of this.workspaces.values()) {
       for (const window of workspace.listWindows()) {
         if (!window.state[WINDOW_STATE_FULLSCREEN_ALL_OUTPUTS]()) continue;
         const rect = this.fullscreenRectForWindow(window);
@@ -1329,7 +1332,7 @@ export class HybridWindowManager {
 
     // An anchored avatar can have a very large transparent client whose
     // centre lies on another output. Its support owns the output instead.
-    const monitor = preferredMonitor ?? this.outputNameAt(x + rect.width / 2, y + rect.height / 2);
+    const monitor = preferredMonitor ?? this.outputNameAt(x + read(rect.width) / 2, y + read(rect.height) / 2);
     if (!monitor || monitor === workspace.monitor) {
       workspace.syncFloatingWindowRect(window, rect);
       workspace.syncWindowVisibleOutputs(window);
@@ -1996,7 +1999,7 @@ export class HybridWindowManager {
     while (current && !visited.has(current.id)) {
       if (current.state[WINDOW_STATE_PINNED]()) return true;
       visited.add(current.id);
-      const parentId = current.parentId();
+      const parentId: string | undefined = current.parentId();
       current = parentId ? this.findWindowById(parentId) : undefined;
     }
     return false;
@@ -3896,6 +3899,7 @@ export class Workspace {
   private kineticScrollToken = 0;
   public monitor: string;
   public isTiled = false;
+  private outputOrigin: { x: number; y: number } | null = null;
 
   public constructor(
     index: number,
@@ -3906,6 +3910,8 @@ export class Workspace {
   ) {
     this.index = index;
     this.monitor = monitor;
+    const output = COMPOSITOR.output.current[monitor];
+    this.outputOrigin = output ? { ...output.position } : null;
     this.naturalRootRect = naturalRootRect;
     this.maximizedRootRect = maximizedRootRect;
     this.activeWorkspaceIndex = activeWorkspaceIndex;
@@ -3914,6 +3920,7 @@ export class Workspace {
   public moveToMonitor(monitor: string, index: number) {
     this.monitor = monitor;
     this.index = index;
+    this.syncOutputGeometry();
     for (const window of this.windows) {
       this.syncWindowVisibleOutputs(window);
       if (window.state[WINDOW_STATE_FULLSCREEN]()) {
@@ -3933,6 +3940,41 @@ export class Workspace {
         window.state[WINDOW_STATE_FLOATING_RECT].set(
           this.isTiled ? this.viewportRectToFloatingContentRect(rect) : null,
         );
+      }
+    }
+  }
+
+  public syncOutputGeometry() {
+    const output = COMPOSITOR.output.current[this.monitor];
+    if (!output?.resolution || !output.enabled) return;
+    const dx = this.outputOrigin ? output.position.x - this.outputOrigin.x : 0;
+    const dy = this.outputOrigin ? output.position.y - this.outputOrigin.y : 0;
+    this.outputOrigin = { ...output.position };
+    const translate = (rect: ManagedWindowRect): ManagedWindowRect => ({
+      x: read(rect.x) + dx, y: read(rect.y) + dy,
+      width: read(rect.width), height: read(rect.height),
+    });
+    for (const window of this.windows) {
+      // Preserve the mascot's deliberately oversized transparent surface.
+      if (isMateEngineWindow(window)) continue;
+      if (dx || dy) {
+        for (const state of [WINDOW_STATE_FLOATING_RECT, WINDOW_STATE_RESTORE_RECT,
+          WINDOW_STATE_FULLSCREEN_RESTORE_RECT]) {
+          const rect = window.state[state]();
+          if (rect) window.state[state].set(translate(rect));
+        }
+      }
+      const rect = window.state[WINDOW_STATE_FULLSCREEN]()
+        ? this.fullscreenRootRect(window)
+        : window.state[WINDOW_STATE_MAXIMIZED]()
+          ? this.maximizedRootRect(window)
+          : this.clampRectToViewport(translate(window.state[WINDOW_STATE_RECT]()));
+      stopRectAnimation(window, WINDOW_STATE_RECT);
+      window.state[WINDOW_STATE_RECT].set(rect);
+      if (!this.isTiled || !this.shouldTile(window)) {
+        if (!window.state[WINDOW_STATE_FULLSCREEN]() && !window.state[WINDOW_STATE_MAXIMIZED]()) {
+          this.syncFloatingWindowRect(window, rect);
+        }
       }
     }
   }
@@ -4014,8 +4056,11 @@ export class Workspace {
     } else if (restored && !this.isTiled) {
       window.state[WINDOW_STATE_RECT].set(
         restored.maximized ? this.maximizedRootRect(window)
-          : this.keepBelowPanel(restored.floatingRect ?? this.centeredFloatingRect(window)),
+          : isMateEngineWindow(window)
+            ? restored.floatingRect ?? this.centeredFloatingRect(window)
+            : this.clampRectToViewport(restored.floatingRect ?? this.centeredFloatingRect(window)),
       );
+      if (!restored.maximized) this.syncFloatingWindowRect(window, window.state[WINDOW_STATE_RECT]());
     } else if (this.isTiled && this.shouldTile(window)) {
       const initialRect = this.centeredFloatingRect(window);
       window.state[WINDOW_STATE_FLOATING_RECT].set(
@@ -4045,9 +4090,11 @@ export class Workspace {
         restored?.floatingRect ??
         this.viewportRectToFloatingContentRect(initialRect);
       window.state[WINDOW_STATE_FLOATING_RECT].set(contentRect);
-      window.state[WINDOW_STATE_RECT].set(
-        this.floatingContentRectToViewportRect(contentRect),
-      );
+      const viewportRect = this.floatingContentRectToViewportRect(contentRect);
+      const rect = restored && !isMateEngineWindow(window)
+        ? this.clampRectToViewport(viewportRect) : viewportRect;
+      window.state[WINDOW_STATE_RECT].set(rect);
+      this.syncFloatingWindowRect(window, rect);
     } else {
       window.state[WINDOW_STATE_RECT].set(this.centeredFloatingRect(window));
     }

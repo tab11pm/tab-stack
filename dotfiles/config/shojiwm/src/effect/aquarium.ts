@@ -1,8 +1,9 @@
 import {
   COMPOSITOR, animationVariable, createAnimationController, signal, markLayerDirty,
   compileLayerEffect, compileOverlayEffect, backdropSource, shaderStage,
-  loadShader, type WaylandLayer,
+  loadShader, type WaylandLayer, type ShaderUniformVec2,
 } from "shoji_wm";
+import { nightColorStage } from "./night-color";
 
 const SHADER = loadShader("./src/effect/aquarium-water.frag");
 const CLOCK = animationVariable("aquarium.phase");
@@ -17,6 +18,7 @@ const phase = animation.variable(CLOCK);
 
 type WaterMotion = {
   value: ReturnType<typeof signal<[number, number]>>;
+  uniform: ShaderUniformVec2;
   at: number;
   waveId: string;
   progress: number;
@@ -26,7 +28,9 @@ const motions = new Map<string, WaterMotion>();
 function waterMotion(output: string): WaterMotion {
   let motion = motions.get(output);
   if (!motion) {
-    motion = { value: signal<[number, number]>([0, 0]), at: Date.now(), waveId: "", progress: 0 };
+    const value = signal<[number, number]>([0, 0]);
+    motion = { value, uniform: [value(pair => pair[0]), value(pair => pair[1])],
+      at: Date.now(), waveId: "", progress: 0 };
     motions.set(output, motion);
   }
   return motion;
@@ -94,10 +98,10 @@ export function aquariumOverlayEffect(outputName: string) {
     invalidate: { kind: "always" },
     pipeline: [shaderStage(SHADER, { uniforms: {
       aquarium_enabled: enabled, aquarium_phase: phase, aquarium_plane: 1,
-      aquarium_slosh: waterMotion(outputName).value,
+      aquarium_slosh: waterMotion(outputName).uniform,
       aquarium_origin: [output.position.x, output.position.y],
       aquarium_extent: [output.resolution.width / output.scale, output.resolution.height / output.scale],
-    } })],
+    } }), nightColorStage()],
   });
 }
 
@@ -111,7 +115,7 @@ export function aquariumMistEffect(layer: WaylandLayer) {
     invalidate: { kind: "manual", dirtyWhen: animation.running(CLOCK) },
     pipeline: [shaderStage(SHADER, { uniforms: {
       aquarium_enabled: enabled, aquarium_phase: phase, aquarium_plane: 0,
-      aquarium_slosh: waterMotion(layer.outputName()).value,
+      aquarium_slosh: waterMotion(layer.outputName()).uniform,
       aquarium_origin: [output.position.x + layer.position.x, output.position.y + layer.position.y],
       aquarium_extent: [layer.position.width, layer.position.height],
     } })],

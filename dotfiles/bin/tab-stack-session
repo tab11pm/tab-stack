@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+"""Run the installing user's tab-stack lifecycle helper without shell expansion."""
+import os
+from pathlib import Path
+import sys
+
+config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
+helper = config / 'shojiwm/scripts/session_lifecycle.py'
+os.execv('/usr/bin/python3', ['/usr/bin/python3', str(helper), *sys.argv[1:]])
