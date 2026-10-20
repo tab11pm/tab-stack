@@ -27,6 +27,7 @@ import {
 import type { CompositionRenderable, ManagedWindowRect } from "shoji_wm/types";
 import { createIpcServer } from "shoji_wm/ipc";
 import { registerMonitors } from "./monitors";
+import { isMissingShortcutFile, parseShortcutSettings, resolveShortcuts, type ShortcutDefinition } from "./shortcut-model";
 import {
   HybridWindowManager,
   isMateEngineWindow,
@@ -409,40 +410,85 @@ COMPOSITOR.process.service("dock", {
   restart: "on-failure",
 });
 
-COMPOSITOR.key.bind("screenshot-region", "Super+Shift+S", () => {
+const SHORTCUT_LABELS: Record<string, [string, string]> = {
+  "screenshot-region": ["Снимок области", "ЗАПУСК И СИСТЕМА"],
+  "screenshot-all": ["Снимок всего экрана", "ЗАПУСК И СИСТЕМА"],
+  terminal: ["Терминал", "ЗАПУСК И СИСТЕМА"],
+  dolphin: ["Файлы", "ЗАПУСК И СИСТЕМА"],
+  mute: ["Выключить или включить звук", "ЗВУК И УПРАВЛЕНИЕ"],
+  "volume-up": ["Громче", "ЗВУК И УПРАВЛЕНИЕ"],
+  "volume-down": ["Тише", "ЗВУК И УПРАВЛЕНИЕ"],
+  launcher: ["Запуск приложений", "ЗАПУСК И СИСТЕМА"],
+  shortcuts: ["Горячие клавиши", "ЗАПУСК И СИСТЕМА"],
+  "shortcut-manager": ["Настройка горячих клавиш", "ЗАПУСК И СИСТЕМА"],
+  "lock-session": ["Заблокировать экран", "ЗАПУСК И СИСТЕМА"],
+  "wallpaper-picker": ["Обои и виджеты", "ЗАПУСК И СИСТЕМА"],
+  "shader-picker": ["Эффекты экрана", "ЗАПУСК И СИСТЕМА"],
+  "toggle-tiling-mode": ["Переключить плиточный режим", "ОКНА"],
+  "close-focused-window": ["Закрыть окно", "ОКНА"],
+  "toggle-focused-window-maximize": ["Развернуть или восстановить", "ОКНА"],
+  "toggle-focused-window-pin": ["Закрепить окно", "ОКНА"],
+  "toggle-focused-window-fullscreen": ["Полный экран", "ОКНА"],
+  "toggle-focused-window-fullscreen-all-outputs": ["Полный экран на всех мониторах", "ОКНА"],
+  "tile-focus-left-quick": ["Выбрать окно слева", "ОКНА"],
+  "tile-focus-right-quick": ["Выбрать окно справа", "ОКНА"],
+  "tile-focus-left": ["Выбрать плитку слева", "ОКНА"],
+  "tile-focus-right": ["Выбрать плитку справа", "ОКНА"],
+  "tile-move-left": ["Переместить плитку влево", "ОКНА"],
+  "tile-move-right": ["Переместить плитку вправо", "ОКНА"],
+  "window-move-workspace-prev": ["Переместить окно на предыдущий стол", "РАБОЧИЕ СТОЛЫ"],
+  "window-move-workspace-next": ["Переместить окно на следующий стол", "РАБОЧИЕ СТОЛЫ"],
+  "workspace-prev": ["Предыдущий рабочий стол", "РАБОЧИЕ СТОЛЫ"],
+  "workspace-next": ["Следующий рабочий стол", "РАБОЧИЕ СТОЛЫ"],
+  fps: ["Показать FPS", "ДИАГНОСТИКА"],
+  profile: ["Профилирование", "ДИАГНОСТИКА"],
+  "activity-toggle": ["Пауза активности", "ЗАПУСК И СИСТЕМА"],
+  "widget-layout-editor": ["Редактор виджетов", "ЗАПУСК И СИСТЕМА"],
+  "window-switcher-next": ["Следующее окно", "ОКНА"],
+  "window-switcher-previous": ["Предыдущее окно", "ОКНА"],
+};
+
+const shortcutDefinitions: ShortcutDefinition[] = [];
+function defineShortcut(id: string, shortcut: string, handler: () => void): void {
+  const [title, category] = SHORTCUT_LABELS[id] ??
+    (id.startsWith("workspace-") ? [`Рабочий стол ${id.slice(10)}`, "РАБОЧИЕ СТОЛЫ"] : [id, "ПРОЧЕЕ"]);
+  shortcutDefinitions.push({ id, shortcut, handler, title, category });
+}
+
+defineShortcut("screenshot-region", "Super+Shift+S", () => {
   COMPOSITOR.process.spawn({
     command: [`${scripts}/screenshot-region`],
   });
 });
 
-COMPOSITOR.key.bind("screenshot-all", "Super+Shift+A", () => {
+defineShortcut("screenshot-all", "Super+Shift+A", () => {
   COMPOSITOR.process.spawn({
     command: [`${scripts}/screenshot-all`],
   });
 });
 
-COMPOSITOR.key.bind("activity-toggle", "Super+Ctrl+T", () => {
+defineShortcut("activity-toggle", "Super+Ctrl+T", () => {
   COMPOSITOR.process.spawn({
     command: ["quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
       "call", "activity", "toggle"],
   });
 });
 
-COMPOSITOR.key.bind("terminal", "Super+Return", () => {
+defineShortcut("terminal", "Super+Return", () => {
   COMPOSITOR.process.spawn({ command: ["ghostty", "--gtk-single-instance=false"], cwd: home });
 });
 
-COMPOSITOR.key.bind("dolphin", "Super+E", () => {
+defineShortcut("dolphin", "Super+E", () => {
   COMPOSITOR.process.spawn({ command: "dolphin" });
 });
 
-COMPOSITOR.key.bind("mute", "XF86AudioMute", () => {
+defineShortcut("mute", "XF86AudioMute", () => {
   COMPOSITOR.process.spawn({ command: "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle" });
 });
-COMPOSITOR.key.bind("volume-up", "XF86AudioRaiseVolume", () => {
+defineShortcut("volume-up", "XF86AudioRaiseVolume", () => {
   COMPOSITOR.process.spawn({ command: "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+" });
 });
-COMPOSITOR.key.bind("volume-down", "XF86AudioLowerVolume", () => {
+defineShortcut("volume-down", "XF86AudioLowerVolume", () => {
   COMPOSITOR.process.spawn({ command: "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-" });
 });
 
@@ -451,88 +497,100 @@ function toggleLauncher() {
     command: [`${scripts}/launcher`],
   });
 }
-COMPOSITOR.key.bind("launcher", "Super+Space", toggleLauncher);
-COMPOSITOR.key.bind("lock-session", "Super+L", () => {
+defineShortcut("launcher", "Super+Space", toggleLauncher);
+defineShortcut("shortcuts", "Super+K", () => {
+  COMPOSITOR.process.spawn({ command: [
+    "quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
+    "call", "shortcuts", "toggle", HYBRID_WINDOW_MANAGER.getCurrentMonitorName(),
+  ] });
+});
+defineShortcut("shortcut-manager", "Super+Shift+K", () => {
+  COMPOSITOR.process.spawn({ command: [
+    "quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
+    "call", "shortcut-manager", "toggle", HYBRID_WINDOW_MANAGER.getCurrentMonitorName(),
+  ] });
+});
+defineShortcut("lock-session", "Super+L", () => {
   COMPOSITOR.process.spawn({
     command: `python3 "${configHome}/shoji-shell/lock/launch.py"`,
   });
 });
-COMPOSITOR.key.bind("wallpaper-picker", "Super+W", () => {
+defineShortcut("wallpaper-picker", "Super+W", () => {
   COMPOSITOR.process.spawn({ command: [
     "quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
     "call", "wallpaper", "toggle", HYBRID_WINDOW_MANAGER.getCurrentMonitorName(),
   ] });
 });
-COMPOSITOR.key.bind("widget-layout-editor", "Super+Ctrl+Shift+W", () => {
+defineShortcut("widget-layout-editor", "Super+Ctrl+Shift+W", () => {
   COMPOSITOR.process.spawn({ command: [
     "quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
     "call", "widgets", "toggle", HYBRID_WINDOW_MANAGER.getCurrentMonitorName(),
   ] });
 });
-COMPOSITOR.key.bind("shader-picker", "Super+Shift+W", () => {
+defineShortcut("shader-picker", "Super+Shift+W", () => {
   COMPOSITOR.process.spawn({ command: [
     "quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
     "call", "screen-shaders", "toggle", HYBRID_WINDOW_MANAGER.getCurrentMonitorName(),
   ] });
 });
-COMPOSITOR.key.bind("toggle-tiling-mode", "Super+S", () => {
+defineShortcut("toggle-tiling-mode", "Super+S", () => {
   HYBRID_WINDOW_MANAGER.toggleCurrentWorkspaceTiling();
   scheduleWorkspaceBroadcast();
 });
-COMPOSITOR.key.bind("close-focused-window", "Super+Q", () => {
+defineShortcut("close-focused-window", "Super+Q", () => {
   HYBRID_WINDOW_MANAGER.closeFocusedWindow();
 });
-COMPOSITOR.key.bind("toggle-focused-window-maximize", "Super+M", () => {
+defineShortcut("toggle-focused-window-maximize", "Super+M", () => {
   HYBRID_WINDOW_MANAGER.toggleFocusedWindowMaximize();
 });
-COMPOSITOR.key.bind("toggle-focused-window-pin", "Super+P", () => {
+defineShortcut("toggle-focused-window-pin", "Super+P", () => {
   HYBRID_WINDOW_MANAGER.toggleFocusedWindowPin();
 });
-COMPOSITOR.key.bind("toggle-focused-window-fullscreen", "Super+F", () => {
+defineShortcut("toggle-focused-window-fullscreen", "Super+F", () => {
   HYBRID_WINDOW_MANAGER.toggleFocusedWindowFullscreen();
 });
-COMPOSITOR.key.bind("toggle-focused-window-fullscreen-all-outputs", "Super+Shift+F", () => {
+defineShortcut("toggle-focused-window-fullscreen-all-outputs", "Super+Shift+F", () => {
   HYBRID_WINDOW_MANAGER.toggleFocusedWindowFullscreen(true);
 });
-COMPOSITOR.key.bind("tile-focus-left-quick", "Super+Left", () => {
+defineShortcut("tile-focus-left-quick", "Super+Left", () => {
   HYBRID_WINDOW_MANAGER.focusTile(-1);
 });
-COMPOSITOR.key.bind("tile-focus-right-quick", "Super+Right", () => {
+defineShortcut("tile-focus-right-quick", "Super+Right", () => {
   HYBRID_WINDOW_MANAGER.focusTile(1);
 });
-COMPOSITOR.key.bind("tile-focus-left", "Super+Ctrl+Left", () => {
+defineShortcut("tile-focus-left", "Super+Ctrl+Left", () => {
   HYBRID_WINDOW_MANAGER.focusTile(-1);
 });
-COMPOSITOR.key.bind("tile-focus-right", "Super+Ctrl+Right", () => {
+defineShortcut("tile-focus-right", "Super+Ctrl+Right", () => {
   HYBRID_WINDOW_MANAGER.focusTile(1);
 });
-COMPOSITOR.key.bind("tile-move-left", "Super+Shift+Left", () => {
+defineShortcut("tile-move-left", "Super+Shift+Left", () => {
   HYBRID_WINDOW_MANAGER.moveFocusedTile(-1);
   scheduleWorkspaceBroadcast();
 });
-COMPOSITOR.key.bind("tile-move-right", "Super+Shift+Right", () => {
+defineShortcut("tile-move-right", "Super+Shift+Right", () => {
   HYBRID_WINDOW_MANAGER.moveFocusedTile(1);
   scheduleWorkspaceBroadcast();
 });
-COMPOSITOR.key.bind("window-move-workspace-prev", "Super+Shift+Up", () => {
+defineShortcut("window-move-workspace-prev", "Super+Shift+Up", () => {
   HYBRID_WINDOW_MANAGER.moveFocusedWindowToWorkspace(-1);
   scheduleWorkspaceBroadcast();
 });
-COMPOSITOR.key.bind("window-move-workspace-next", "Super+Shift+Down", () => {
+defineShortcut("window-move-workspace-next", "Super+Shift+Down", () => {
   HYBRID_WINDOW_MANAGER.moveFocusedWindowToWorkspace(1);
   scheduleWorkspaceBroadcast();
 });
-COMPOSITOR.key.bind("workspace-prev", "Super+Ctrl+Up", () => {
+defineShortcut("workspace-prev", "Super+Ctrl+Up", () => {
   HYBRID_WINDOW_MANAGER.switchWorkspace(-1);
   scheduleWorkspaceBroadcast();
 });
-COMPOSITOR.key.bind("workspace-next", "Super+Ctrl+Down", () => {
+defineShortcut("workspace-next", "Super+Ctrl+Down", () => {
   HYBRID_WINDOW_MANAGER.switchWorkspace(1);
   scheduleWorkspaceBroadcast();
 });
 
 for (let index = 1; index <= PERSISTENT_WORKSPACE_COUNT; index++) {
-  COMPOSITOR.key.bind(`workspace-${index}`, `Alt+${index}`, () => {
+  defineShortcut(`workspace-${index}`, `Alt+${index}`, () => {
     HYBRID_WINDOW_MANAGER.activate(
       HYBRID_WINDOW_MANAGER.getCurrentMonitorName(),
       index,
@@ -545,10 +603,10 @@ for (let index = 1; index <= PERSISTENT_WORKSPACE_COUNT; index++) {
 // key events over the same socket the shell already listens on. Alt+Tab opens
 // on the previous window and walks the stack; the overlay commits when Alt is
 // released (it holds an exclusive keyboard grab while open).
-COMPOSITOR.key.bind("window-switcher-next", "Alt+Tab", () => {
+defineShortcut("window-switcher-next", "Alt+Tab", () => {
   WORKSPACE_IPC.broadcast("switcher.next", {});
 });
-COMPOSITOR.key.bind("window-switcher-previous", "Alt+Shift+Tab", () => {
+defineShortcut("window-switcher-previous", "Alt+Shift+Tab", () => {
   WORKSPACE_IPC.broadcast("switcher.previous", {});
 });
 
@@ -557,16 +615,38 @@ COMPOSITOR.key.bind("window-switcher-commit", "Alt", () => {
 }, { on: "release" });
 
 let fpsCounter = false;
-COMPOSITOR.key.bind("fps", "Super+Ctrl+Shift+F", () => {
+defineShortcut("fps", "Super+Ctrl+Shift+F", () => {
   fpsCounter = !fpsCounter;
   COMPOSITOR.debug.fpsCounter = fpsCounter;
 });
 
 let profileEnabled = false;
-COMPOSITOR.key.bind("profile", "Super+Shift+T", () => {
+defineShortcut("profile", "Super+Shift+T", () => {
   profileEnabled = !profileEnabled;
   COMPOSITOR.debug.enableProfile(profileEnabled);
 });
+
+const shortcutConfigPath = `${configHome}/shojiwm/shortcuts.json`;
+let shortcutDocument: unknown = null;
+try {
+  shortcutDocument = JSON.parse(Deno.readTextFileSync(shortcutConfigPath));
+} catch (error) {
+  if (!isMissingShortcutFile(error)) console.warn("Could not read shortcuts.json", error);
+}
+const configuredShortcuts = resolveShortcuts(shortcutDefinitions, parseShortcutSettings(shortcutDocument));
+for (const warning of configuredShortcuts.warnings) console.warn(warning);
+for (const shortcut of configuredShortcuts.rows) {
+  if (!shortcut.enabled) continue;
+  if (shortcut.kind === "custom") {
+    const command = shortcut.command!;
+    COMPOSITOR.key.bind(shortcut.id, shortcut.shortcut, () => {
+      COMPOSITOR.process.spawn({ command: ["bash", "-lc", command], cwd: home });
+    });
+  } else {
+    COMPOSITOR.key.bind(shortcut.id, shortcut.shortcut, shortcut.handler);
+  }
+}
+WORKSPACE_IPC.handle("shortcuts.get", () => configuredShortcuts.rows.map(({ handler, ...row }) => row));
 
 registerMonitors(WORKSPACE_IPC);
 

@@ -87,3 +87,6 @@ cd tab-stack
 Ошибки и предложения — в [issues tab-stack](https://github.com/tab11pm/tab-stack/issues). Для изменений десктопа прочитайте [правила работы с исходниками](dotfiles/AGENTS.md).
 
 Основа проекта — работа howdeploy над kisa-stack. tab-stack сохраняет её происхождение и развивается как мой проект. [MIT-лицензия](LICENSE) и авторские уведомления исходного проекта остаются в репозитории; сторонние компоненты сохраняют свои [лицензии и атрибуцию](dotfiles/NOTICE.md).
+
+`Super+K` открывает поиск горячих клавиш, `Super+Shift+K` — их настройку и свои команды.
+Подробнее: [горячие клавиши](dotfiles/docs/configuration.md#keys-and-window-management).

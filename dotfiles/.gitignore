@@ -24,3 +24,5 @@ idle-sleep.json
 widget-layouts.json
 activity.sqlite3*
 backups/
+
+shortcuts.json

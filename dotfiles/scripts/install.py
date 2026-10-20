@@ -91,12 +91,16 @@ def main():
         dst.parent.mkdir(parents=True, exist_ok=True)
         try:
             if src.is_dir():
-                shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "deepseek-api-key", "night-light.json", "idle-sleep.json", "widget-layouts.json", "node_modules"))
+                shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "shortcuts.json", "deepseek-api-key", "night-light.json", "idle-sleep.json", "widget-layouts.json", "node_modules"))
             else:
                 shutil.copy2(src, dst)
             if dst == config / "shojiwm":
                 dst.joinpath("node_modules").mkdir()
                 dst.joinpath("node_modules/shoji_wm").symlink_to("/usr/lib/shojiwm/packages/shoji_wm", target_is_directory=True)
+            if dst == config / "shojiwm" and previous.is_dir():
+                saved_shortcuts = previous / "shortcuts.json"
+                if saved_shortcuts.is_file() and not saved_shortcuts.is_symlink():
+                    shutil.copy2(saved_shortcuts, dst / "shortcuts.json")
             if dst == config / "shoji-shell" and previous.is_dir():
                 for name in ("integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "deepseek-api-key", "night-light.json", "idle-sleep.json", "widget-layouts.json"):
                     old = previous / name

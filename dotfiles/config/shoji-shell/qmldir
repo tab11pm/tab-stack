@@ -83,3 +83,6 @@ WidgetLayoutEditor 1.0 WidgetLayoutEditor.qml
 WidgetLayoutCanvas 1.0 WidgetLayoutCanvas.qml
 singleton WidgetEditor 1.0 WidgetEditor.qml
 WidgetEditorScreen 1.0 WidgetEditorScreen.qml
+
+Shortcuts 1.0 Shortcuts.qml
+ShortcutManager 1.0 ShortcutManager.qml

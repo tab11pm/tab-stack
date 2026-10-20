@@ -98,6 +98,8 @@ from the original installer remain in its previous directory. The printed
 `manifest.json` maps every target to its backup. Upgrades preserve an existing
 shell `integrations.env`, `wallpapers.json`, `wallpaper-groups.json` and
 `monitors.json`, `night-light.json`, `idle-sleep.json` and `widget-layouts.json` and the private `deepseek-api-key` file; review those local files yourself.
+The installer also preserves `shojiwm/shortcuts.json`, which stores local shortcut
+overrides and personal commands.
 Other local component changes remain in the backup, not merged into the new copy.
 
 For an isolated staging installation, use `--target-home /absolute/temporary/directory`.

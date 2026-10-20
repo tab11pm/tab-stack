@@ -72,3 +72,6 @@ The October 12 export also excludes `night-light.json`, `idle-sleep.json`,
 `widget-layouts.json`, activity databases and backups. The installer preserves
 these shell profiles and leaves activity history outside the configuration tree.
 No local Hermes transport executable or endpoint is published.
+
+Shortcut overrides and personal shell commands in `shojiwm/shortcuts.json` stay
+local: Git and the publication checker exclude this file, and reinstall preserves it.

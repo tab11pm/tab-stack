@@ -4,6 +4,7 @@ import QtQuick
 Item {
     id: root
     readonly property real ratio: width / 852
+
     Repeater {
         model: [
             { x: 0, y: 242, w: 252, h: 170, color: Theme.surface },
@@ -28,18 +29,29 @@ Item {
             color: modelData.color
         }
     }
-    Repeater {
-        model: 4
-        Item {
-            required property int index
-            x: (65 + index * 174 + (index >= 2 ? 26 : 0)) * root.ratio
-            width: 174 * root.ratio; height: 228 * root.ratio
-            clip: true
-            HomeMascot {
-                anchors.fill: parent
-                digit: parent.index + 1
-                animate: false
-            }
-        }
+
+    Text {
+        x: 60 * root.ratio
+        y: 14 * root.ratio
+        width: 732 * root.ratio
+        height: 137 * root.ratio
+        text: "08<font color='#cba6f7'>:</font>42"
+        textFormat: Text.RichText
+        font.family: Theme.font
+        font.pixelSize: 120 * root.ratio
+        font.weight: Font.DemiBold
+        font.letterSpacing: -4 * root.ratio
+        color: Theme.ink
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+    }
+    UiText {
+        x: 0; y: 163 * root.ratio; width: 852 * root.ratio
+        text: "ВТОРНИК · 20 ОКТЯБРЯ"
+        color: Theme.muted
+        font.family: "Noto Sans Mono"
+        font.pixelSize: 10 * root.ratio
+        font.letterSpacing: 1.1 * root.ratio
+        horizontalAlignment: Text.AlignHCenter
     }
 }

@@ -47,9 +47,17 @@ def main():
         activity = home / ".local/state/shoji-shell/activity.sqlite3"
         activity.parent.mkdir(parents=True)
         activity.write_bytes(b"synthetic private activity fixture")
+        shortcuts = config / "shojiwm/shortcuts.json"
+        shortcut_state = {"version": 1, "overrides": {"terminal": "Super+U"},
+                          "custom": [{"id": "user-fixture", "title": "Fixture", "shortcut": "Super+Y", "command": "true"}]}
+        shortcuts.write_text(json.dumps(shortcut_state) + "\n")
         user_file = config / "ghostty/user-note"
         user_file.write_text("preserve in backup\n")
         subprocess.run([*args, "--apply"], check=True, capture_output=True)
+        assert json.loads(shortcuts.read_text()) == shortcut_state, "Reinstall lost shortcut settings"
+        for name in ("Shortcuts.qml", "ShortcutManager.qml"):
+            assert config.joinpath("shoji-shell", name).is_file()
+        assert config.joinpath("shojiwm/src/shortcut-model.ts").is_file()
         assert "local setting" in local.read_text()
         assert json.loads(groups.read_text()) == group_state, "Reinstall lost wallpaper groups"
         assert config.joinpath("shoji-shell/WallpaperGroups.qml").is_file()
