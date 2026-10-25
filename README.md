@@ -87,3 +87,8 @@ cd tab-stack
 Ошибки и предложения — в [issues tab-stack](https://github.com/tab11pm/tab-stack/issues). Для изменений десктопа прочитайте [правила работы с исходниками](dotfiles/AGENTS.md).
 
 Основа проекта — работа howdeploy над kisa-stack. tab-stack сохраняет её происхождение и развивается как мой проект. [MIT-лицензия](LICENSE) и авторские уведомления исходного проекта остаются в репозитории; сторонние компоненты сохраняют свои [лицензии и атрибуцию](dotfiles/NOTICE.md).
+
+Исторический [аудит миграции](docs/migration/dependency-register.md),
+[критерии приёмки](docs/migration/acceptance.md) и
+[восстановление](docs/migration/recovery.md) фиксируют состояние на 10 октября 2026 года.
+Актуальная реализация описана в [руководстве сессии](dotfiles/docs/session.md).
