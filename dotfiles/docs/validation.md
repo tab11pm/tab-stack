@@ -1,5 +1,22 @@
 # Validation record
 
+## 2026-10-20 shortcut manager and clock export
+
+Ported onto the current main branch, preserving the activity control, widget
+editor and Alt+Tab release binding. The manager supports system overrides,
+disabling/restoring actions and up to 100 explicit custom shell commands.
+Home Zone now uses text time and a Russian date, including its picker preview.
+
+- Deno shortcut-model suite: 4 tests passed.
+- Qt 6.11.2 qmllint: no error diagnostics for the changed QML files; metadata
+  warnings remain for PanelWindow and dynamically loaded QObject properties.
+- Isolated installer/reinstaller check passed, including preservation of a
+  synthetic shortcuts.json and delivery of the manager/list/model sources.
+- Publication privacy scan and Git whitespace checks passed.
+
+The running desktop was not installed over or reloaded. Live keyboard capture,
+custom command activation and rendered appearance require desktop acceptance.
+
 ## 2026-10-12 desktop source export
 
 Exported selected installed source on top of `origin/main` including monitor and

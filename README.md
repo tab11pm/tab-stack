@@ -88,6 +88,8 @@ cd tab-stack
 
 Основа проекта — работа howdeploy над kisa-stack. tab-stack сохраняет её происхождение и развивается как мой проект. [MIT-лицензия](LICENSE) и авторские уведомления исходного проекта остаются в репозитории; сторонние компоненты сохраняют свои [лицензии и атрибуцию](dotfiles/NOTICE.md).
 
+`Super+K` открывает поиск горячих клавиш, `Super+Shift+K` — их настройку и свои команды.
+Подробнее: [горячие клавиши](dotfiles/docs/configuration.md#keys-and-window-management).
 Исторический [аудит миграции](docs/migration/dependency-register.md),
 [критерии приёмки](docs/migration/acceptance.md) и
 [восстановление](docs/migration/recovery.md) фиксируют состояние на 10 октября 2026 года.

@@ -27,6 +27,8 @@ ShellRoot {
         || Quickshell.screens[0] || null
     property string panelScreen: ""
     property string panelPage: ""
+    property string shortcutsOutput: ""
+    property bool shortcutManagerOpen: false
     property bool panelReady: false
     property var desktopMusic: null
     property var stats: ({})
@@ -42,6 +44,30 @@ ShellRoot {
     IpcHandler {
         target: "session"
         function lock(): void { LockScreen.request(); }
+    }
+    function toggleShortcutWindow(outputName, manager) {
+        if (WidgetEditor.targetOutput !== "" && WidgetEditor.busy) return;
+        if (!Quickshell.screens.some(screen => screen.name === outputName)) return;
+        if (root.shortcutsOutput === outputName && root.shortcutManagerOpen === manager) {
+            root.shortcutsOutput = "";
+            return;
+        }
+        Wallpapers.cancel();
+        ScreenShaders.cancel();
+        root.panelPage = "";
+        WidgetEditor.cancel();
+        root.shortcutManagerOpen = manager;
+        root.shortcutsOutput = outputName;
+    }
+    IpcHandler {
+        target: "shortcuts"
+        function toggle(outputName: string): void { root.toggleShortcutWindow(outputName, false); }
+        function close(): void { root.shortcutsOutput = ""; }
+    }
+    IpcHandler {
+        target: "shortcut-manager"
+        function toggle(outputName: string): void { root.toggleShortcutWindow(outputName, true); }
+        function close(): void { root.shortcutsOutput = ""; }
     }
     IpcHandler {
         target: "wallpaper"
@@ -72,17 +98,24 @@ ShellRoot {
     }
     Connections {
         target: WidgetEditor
-        function onTargetOutputChanged(): void { if (WidgetEditor.targetOutput !== "") root.panelPage = ""; }
+        function onTargetOutputChanged(): void {
+            if (WidgetEditor.targetOutput !== "") { root.panelPage = ""; root.shortcutsOutput = ""; }
+        }
     }
     Connections {
         target: Wallpapers
-        function onTargetOutputChanged(): void { if (Wallpapers.targetOutput !== "") root.panelPage = ""; }
+        function onTargetOutputChanged(): void {
+            if (Wallpapers.targetOutput !== "") { root.panelPage = ""; root.shortcutsOutput = ""; }
+        }
     }
     Connections {
         target: ScreenShaders
-        function onTargetOutputChanged(): void { if (ScreenShaders.targetOutput !== "") root.panelPage = ""; }
+        function onTargetOutputChanged(): void {
+            if (ScreenShaders.targetOutput !== "") { root.panelPage = ""; root.shortcutsOutput = ""; }
+        }
     }
     function toggle(screenName, page) {
+        root.shortcutsOutput = "";
         if (WidgetEditor.targetOutput !== "" && WidgetEditor.busy) return;
         WidgetEditor.cancel();
         if (panelScreen === screenName && panelPage === page) {

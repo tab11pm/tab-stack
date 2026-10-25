@@ -12,6 +12,8 @@ Bindings live in `shojiwm/src/index.tsx`; behavior lives in `src/window-manager.
 | --- | --- |
 | `Super+Return` | Ghostty |
 | `Super+Space` | Walker |
+| `Super+K` | Searchable keyboard shortcuts list |
+| `Super+Shift+K` | Keyboard shortcut manager |
 | `Super+L` | Lock the session with the custom Quickshell locker |
 | `Super+E` | Dolphin |
 | `Super+W` | Wallpaper and widget preset picker |
@@ -25,6 +27,15 @@ Bindings live in `shojiwm/src/index.tsx`; behavior lives in `src/window-manager.
 | `Super+Ctrl+Up/Down` | Switch workspace |
 | `Super+Shift+R` | Reload compositor configuration |
 | `Super+Shift+Q` | End compositor session (save your work first) |
+
+`Super+K` opens the original searchable shortcut list. `Super+Shift+K` opens the shortcut manager. Select a system action to change its
+combination, disable it, or restore the default. Add a named shell command with its
+own combination, then edit or delete it from the same list. Changes are saved to
+`shojiwm/shortcuts.json` in the installed configuration; press `Super+Shift+R` to
+apply them. `Super+K`, `Super+Shift+K`, compositor reload and session exit remain reserved so the
+manager and recovery controls stay reachable. Alt+Tab and Alt+Shift+Tab also stay
+fixed because the switcher commits on Alt release. The installer preserves this local
+file and never publishes personal commands.
 
 Keyboard layouts are `us,ru`, toggled with Alt+Shift. Change the input configuration
 for your languages and pointer/trackpad preferences. The public setup does not
