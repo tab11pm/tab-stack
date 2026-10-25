@@ -90,3 +90,7 @@ cd tab-stack
 
 `Super+K` открывает поиск горячих клавиш, `Super+Shift+K` — их настройку и свои команды.
 Подробнее: [горячие клавиши](dotfiles/docs/configuration.md#keys-and-window-management).
+Исторический [аудит миграции](docs/migration/dependency-register.md),
+[критерии приёмки](docs/migration/acceptance.md) и
+[восстановление](docs/migration/recovery.md) фиксируют состояние на 10 октября 2026 года.
+Актуальная реализация описана в [руководстве сессии](dotfiles/docs/session.md).
