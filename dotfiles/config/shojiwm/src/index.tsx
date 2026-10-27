@@ -427,6 +427,9 @@ const SHORTCUT_LABELS: Record<string, [string, string]> = {
   "toggle-tiling-mode": ["Переключить плиточный режим", "ОКНА"],
   "close-focused-window": ["Закрыть окно", "ОКНА"],
   "toggle-focused-window-maximize": ["Развернуть или восстановить", "ОКНА"],
+  "maximize-focused-window": ["Развернуть окно", "ОКНА"],
+  "restore-focused-window": ["Восстановить окно", "ОКНА"],
+  "show-desktop": ["Показать рабочий стол", "ОКНА"],
   "toggle-focused-window-pin": ["Закрепить окно", "ОКНА"],
   "toggle-focused-window-fullscreen": ["Полный экран", "ОКНА"],
   "toggle-focused-window-fullscreen-all-outputs": ["Полный экран на всех мониторах", "ОКНА"],
@@ -543,6 +546,15 @@ defineShortcut("close-focused-window", "Super+Q", () => {
 defineShortcut("toggle-focused-window-maximize", "Super+M", () => {
   HYBRID_WINDOW_MANAGER.toggleFocusedWindowMaximize();
 });
+defineShortcut("maximize-focused-window", "Super+Up", () => {
+  HYBRID_WINDOW_MANAGER.maximizeFocusedWindow();
+});
+defineShortcut("restore-focused-window", "Super+Down", () => {
+  HYBRID_WINDOW_MANAGER.restoreFocusedWindow();
+});
+defineShortcut("show-desktop", "Super+D", () => {
+  HYBRID_WINDOW_MANAGER.toggleShowDesktop();
+});
 defineShortcut("toggle-focused-window-pin", "Super+P", () => {
   HYBRID_WINDOW_MANAGER.toggleFocusedWindowPin();
 });
@@ -609,10 +621,6 @@ defineShortcut("window-switcher-next", "Alt+Tab", () => {
 defineShortcut("window-switcher-previous", "Alt+Shift+Tab", () => {
   WORKSPACE_IPC.broadcast("switcher.previous", {});
 });
-
-COMPOSITOR.key.bind("window-switcher-commit", "Alt", () => {
-  WORKSPACE_IPC.broadcast("switcher.commit", {});
-}, { on: "release" });
 
 let fpsCounter = false;
 defineShortcut("fps", "Super+Ctrl+Shift+F", () => {

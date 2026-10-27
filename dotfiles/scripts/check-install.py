@@ -21,6 +21,19 @@ def main():
         assert config.joinpath("shojiwm/node_modules/shoji_wm").is_symlink()
         assert config.joinpath("shoji-shell/shaders/widget-wave-mask.frag.qsb").is_file()
         assert str(home) in config.joinpath("elephant/files.toml").read_text()
+        native = config / "shoji-shell/SwitcherInput"
+        assert native.joinpath("libswitcherinputplugin.so").is_file()
+        module_description = native.joinpath("qmldir").read_text()
+        assert "@SWITCHER_INPUT_PATH@" not in module_description
+        smoke = config / "shoji-shell/switcher-input-check.qml"
+        smoke.write_text('import QtQuick\nimport Quickshell\nimport "SwitcherInput" as Native\nShellRoot { Component.onCompleted: { Native.InputState.watch(null); console.log("SWITCHER_NATIVE_IMPORT_OK"); Qt.callLater(Qt.quit); } }\n')
+        runtime = home / ".runtime"
+        runtime.mkdir(mode=0o700)
+        import os
+        result = subprocess.run(["quickshell", "--no-duplicate", "--path", str(smoke), "--no-color"],
+            env=dict(os.environ, QT_QPA_PLATFORM="offscreen", XDG_RUNTIME_DIR=str(runtime)),
+            capture_output=True, text=True, timeout=10)
+        assert result.returncode == 0 and "SWITCHER_NATIVE_IMPORT_OK" in result.stdout + result.stderr, result.stdout + result.stderr
         local = config / "shoji-shell/integrations.env"
         local.write_text("SHOJI_ENABLE_GITHUB=0\n# local setting\n")
         groups = config / "shoji-shell/wallpaper-groups.json"

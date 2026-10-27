@@ -31,11 +31,10 @@ def private_runtime():
 
 
 def pam_configuration(runtime):
-    # Prefer distro-managed password-only policy. Never silently use login's
-    # session/TTY policy, nor a service that can succeed without a password.
-    for service in ("shoji-lock", "omarchy-lock-password", "swaylock", "hyprlock"):
-        if (PAM_DIRECTORY / service).is_file():
-            return str(PAM_DIRECTORY), service
+    # Use only our service. A missing system file selects the bundled policy,
+    # never another locker's policy or login's session/TTY policy.
+    if (PAM_DIRECTORY / "shoji-lock").is_file():
+        return str(PAM_DIRECTORY), "shoji-lock"
     policy = PAM_DIRECTORY
     if not all((policy / name).is_file() for name in ("system-auth", "system-local-login")):
         raise RuntimeError("Нужен системный PAM-сервис /etc/pam.d/shoji-lock для этой ОС.")

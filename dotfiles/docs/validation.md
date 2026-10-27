@@ -1,5 +1,43 @@
 # Validation record
 
+## 2026-10-28 remaining system synchronization
+
+Prepared from fetched main `617d49b`, retaining already published desktop features
+and the newer source safeguards. Only reviewed source deltas were ported; the
+installed desktop was not changed during this synchronization.
+
+- Twenty source/check commands passed, including six new desktop regressions,
+  monitor/switcher/widget/music checks, quota/status/spectrum/session parsers,
+  brightness and privacy checks, isolated installation and whitespace.
+- Python discovery: 62 tests ran, 61 passed and one Unix peer-identity case was
+  skipped because the sandbox cannot bind Unix sockets. Activity accounting's
+  existing 24 tests, eight locker tests and five DeepSeek checks also passed.
+- Explicit activity consent tests failed before the guard and passed afterward;
+  disabled direct execution creates no private database. Claude collection also
+  refuses direct execution without the limits opt-in.
+- Deno shortcut model: four tests passed. A full Deno TypeScript check passed
+  against the installed `shoji_wm` imports, with no implicit dependency download.
+- The native switcher helper built against Qt 6.11.2. Four substantive offscreen
+  focus/modifier/cancellation tests passed (six QtTest cases including setup and
+  cleanup). Quickshell loaded the installed module from a target home containing
+  a space; the source qmldir retained its portable placeholder.
+- Qt 6 lint on eleven selected changed QML files: no error diagnostics; nine
+  existing Quickshell `QProcess::ExitStatus` metadata warnings and unused-import
+  notices remain. The helper has explicit tooling type metadata.
+- The fake native night-filter check passed for multi-output, temperature,
+  CRT/aquarium coexistence, hotplug and a deliberately simulated GPU failure.
+- Qt shaders compiled locally. Generated `.qsb`, `.so` and object files are
+  ignored and excluded from publication. Reinstallation preserved synthetic
+  integration/key files, wallpaper/monitor/night/idle/widget/shortcut profiles
+  and private activity history.
+
+These checks do not establish live Wayland key timing, GPU rendering, native
+mode switching, real account endpoints, lock/suspend, cold boot or a clean-user
+session. No compositor rebuild, session reload or authenticated request was
+performed for this synchronization. Embedded-runtime filesystem compatibility
+is not proved by the standalone Deno typecheck or model tests.
+
+
 ## 2026-10-20 shortcut manager and clock export
 
 Ported onto the current main branch, preserving the activity control, widget

@@ -53,6 +53,17 @@ Singleton {
     function liveFor(outputName, value) {
         return liveLayers(value).find(layer => layer.visibleOutputs.includes(outputName)) || null;
     }
+    function outputConnected(name) {
+        return Quickshell.screens.some(screen => screen.name === name);
+    }
+    function renderableLive(value) {
+        const layers = liveLayers(value).filter(layer =>
+            Array.isArray(layer.outputs) && layer.outputs.length > 0
+            && Array.isArray(layer.visibleOutputs) && layer.visibleOutputs.length > 0
+            && layer.outputs.every(name => outputConnected(name))
+            && layer.visibleOutputs.every(name => layer.outputs.includes(name) && outputConnected(name)));
+        return layers.length ? { layers: layers } : null;
+    }
     function frameFor(outputName) { return liveFor(outputName) ? null : (document.frames || {})[outputName] || null; }
     function outputsToClear(outputName, span) {
         if (span) return [];
@@ -151,7 +162,7 @@ Singleton {
             else cancel();
             return;
         }
-        if (nextDocument.live || LiveWallpapers.active || document.live || (frame && frame.span)
+        if (renderableLive(nextDocument) || LiveWallpapers.active || (frame && frame.span)
                 || (frameFor(outputName) && frameFor(outputName).span)) {
             LiveWallpapers.begin(nextDocument);
             return;

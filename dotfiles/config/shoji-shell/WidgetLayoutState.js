@@ -57,13 +57,24 @@ function place(document, id, placement) {
     next.layout.widgets[id] = cleanPlacement(placement);
     return next;
 }
+function primaryScreenName(screens, primary) {
+    var connected = screens.some(function (screen) { return screen.name === primary; });
+    return connected ? primary : (screens[0] || {}).name || null;
+}
 function resolveOutput(reference, screens, primary) {
-    if (reference === "primary") return primary || (screens[0] || {}).name || "primary";
-    if (reference === "right") {
-        var right = screens.reduce(function (result, screen) { return !result || screen.x > result.x ? screen : result; }, null);
-        return right ? right.name : "right";
+    var main = primaryScreenName(screens, primary);
+    if (reference === "primary") return main;
+    if (reference === "secondary" || reference === "right") {
+        var other = screens.find(function (screen) { return screen.name !== main; });
+        return other ? other.name : null;
     }
     return reference;
+}
+function roleForOutput(name, screens, primary) {
+    var main = primaryScreenName(screens, primary);
+    if (name === main) return "primary";
+    var other = screens.find(function (screen) { return screen.name !== main; });
+    return other && other.name === name ? "secondary" : name;
 }
 function clampPosition(x, y, width, height, screen) {
     return { x: Math.round(Math.max(0, Math.min(Math.max(0, screen.width - width), x))),

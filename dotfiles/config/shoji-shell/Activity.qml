@@ -7,10 +7,11 @@ import Quickshell.Wayland
 
 Singleton {
     id: root
+    readonly property bool enabled: Settings.enabled("activity")
     property bool loaded: false
     property bool manualPaused: false
     property bool viewing: false
-    property string status: "Запуск учёта…"
+    property string status: enabled ? "Запуск учёта…" : "Учёт выключен · включается отдельно"
     property string error: ""
     property var report: ({})
     property bool tracking: false
@@ -84,7 +85,7 @@ Singleton {
     }
     Process {
         id: collector
-        running: true
+        running: root.enabled
         stdinEnabled: true
         command: ["python3", root.script]
         stdout: SplitParser {
@@ -110,12 +111,13 @@ Singleton {
             root.viewing = false;
             root.tracking = false;
             root.error = "Сборщик остановлен · повторный запуск через 5 секунд";
-            restart.start();
+            if (root.enabled) restart.start();
         }
     }
-    Timer { id: restart; interval: 5000; onTriggered: collector.running = true }
+    Timer { id: restart; interval: 5000; onTriggered: { if (root.enabled) collector.running = true; } }
     IdleMonitor {
         id: idle
+        enabled: root.enabled
         timeout: 300
         respectInhibitors: false
         onIsIdleChanged: root.pushState()
@@ -123,7 +125,7 @@ Singleton {
     Socket {
         id: source
         path: Quickshell.env("XDG_RUNTIME_DIR") + "/shojiwm-" + Quickshell.env("WAYLAND_DISPLAY") + ".sock"
-        connected: true
+        connected: root.enabled
         onConnectionStateChanged: {
             if (connected) root.requestFocus();
             else { root.sourceAt = 0; root.appId = ""; root.pushState(); }
@@ -139,19 +141,19 @@ Singleton {
         }
     }
     Timer {
-        interval: 1000; running: true; repeat: true
+        interval: 1000; running: root.enabled; repeat: true
         onTriggered: {
             const today = Qt.formatDate(new Date(), "yyyy-MM-dd");
             if (root.followToday && root.selectedDate !== today) { root.selectedDate = today; root.query(); }
             root.pushState();
         }
     }
-    Timer { interval: 2000; running: true; repeat: true; onTriggered: { if (!source.connected) source.connected = true; else root.requestFocus(); } }
+    Timer { interval: 2000; running: root.enabled; repeat: true; onTriggered: { if (!source.connected) source.connected = true; else root.requestFocus(); } }
     Process {
         id: lockProbe
         property int serial: 0
         onRunningChanged: { if (running) serial = root.lockSerial; }
-        running: true
+        running: root.enabled
         command: ["python3", root.script, "--lock-status"]
         stdout: StdioCollector { id: lockReply; waitForEnd: true }
         onExited: exitCode => {
@@ -164,6 +166,6 @@ Singleton {
             root.pushState();
         }
     }
-    Timer { interval: 5000; running: true; repeat: true; onTriggered: { if (!lockProbe.running) lockProbe.running = true; } }
+    Timer { interval: 5000; running: root.enabled; repeat: true; onTriggered: { if (!lockProbe.running) lockProbe.running = true; } }
     Process { id: notice }
 }

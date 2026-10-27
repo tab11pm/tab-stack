@@ -28,6 +28,9 @@ Singleton {
     property bool restoring: false
     property int restoreFailures: 0
     property bool catalogReady: false
+    property var pendingSelection: null
+    property string requestedSignature: "null"
+    property string appliedSignature: "null"
     readonly property string helper: decodeURIComponent(Qt.resolvedUrl("live-wallpaper.py").toString().replace("file://", ""))
 
     function send(action, extra) {
@@ -72,6 +75,8 @@ Singleton {
             width: Math.max(...screens.map(s => s.x + s.width)) - x,
             height: Math.max(...screens.map(s => s.y + s.height)) - y };
         pendingDocument = document;
+        pendingSelection = Wallpapers.renderableLive(document);
+        requestedSignature = JSON.stringify(pendingSelection);
         previousDocument = Wallpapers.document;
         rollingBack = false;
         Wallpapers.error = "";
@@ -149,12 +154,16 @@ Singleton {
         fail("Не удалось сохранить выбор. Предыдущие обои сохранены.");
     }
     function restore() {
-        if (restoring || busy || active || !backend.running || !catalogReady || !Wallpapers.ready
-                || !nativeWave || !Wallpapers.document.live || Wallpapers.saving || Wallpapers.targetOutput) return;
+        if (restoring || busy || !backend.running || !catalogReady || !Wallpapers.ready
+                || !nativeWave || Wallpapers.saving || Wallpapers.targetOutput) return;
+        const selection = Wallpapers.renderableLive(Wallpapers.document);
+        const signature = JSON.stringify(selection);
+        if (signature === appliedSignature && active === !!selection) return;
         // Reload restores the saved renderer without freezing widgets or rewriting the selection.
         restoring = true;
-        status = "Восстановление видеообоев…";
-        send("prepare", { selection: Wallpapers.document.live, restore: true });
+        requestedSignature = signature;
+        status = selection ? "Восстановление видеообоев…" : "";
+        send("prepare", { selection: selection, restore: true });
     }
     function complete() {
         busy = false;
@@ -164,6 +173,7 @@ Singleton {
         freezeRequested = false;
         covered = false;
         pendingDocument = null;
+        pendingSelection = null;
         previousDocument = null;
         rollingBack = false;
         if (!Wallpapers.error) status = "";
@@ -175,7 +185,7 @@ Singleton {
         onTriggered: if (root.busy) {
             root.capturing = false;
             root.syncWave();
-            root.send("prepare", { selection: root.pendingDocument.live || null });
+            root.send("prepare", { selection: root.pendingSelection });
         }
     }
     NumberAnimation {
@@ -227,7 +237,7 @@ Singleton {
         target: Quickshell
         function onScreensChanged() {
             if (root.busy || root.restoring) { root.send("cancel"); root.fail("Состав мониторов изменился. Повтори выбор обоев."); }
-            else if (root.active && Wallpapers.document.live) root.begin(Wallpapers.document);
+            else root.restore();
         }
     }
     Process {
@@ -256,6 +266,7 @@ Singleton {
                         root.frozen();
                     } else if (message.event === "committed") {
                         root.active = message.active;
+                        root.appliedSignature = root.requestedSignature;
                         if (root.restoring) {
                             root.restoring = false;
                             root.restoreFailures = 0;

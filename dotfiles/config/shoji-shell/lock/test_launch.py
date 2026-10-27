@@ -64,6 +64,17 @@ class LauncherTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "PAM"):
                     launch.pam_configuration(Path(directory))
 
+    def test_foreign_locker_policy_cannot_replace_the_bundled_password_policy(self):
+        with tempfile.TemporaryDirectory() as directory:
+            policy = Path(directory) / "policy"
+            policy.mkdir()
+            for name in ("system-auth", "system-local-login", "system-login", "swaylock"):
+                (policy / name).write_text("# isolated fixture\n")
+            with patch.object(launch, "PAM_DIRECTORY", policy):
+                pam_dir, service = launch.pam_configuration(Path(directory))
+                self.assertEqual(service, "shoji-lock")
+                self.assertEqual(Path(pam_dir), Path(directory) / "pam")
+
     def test_arch_fallback_preserves_transitive_system_includes(self):
         with tempfile.TemporaryDirectory() as directory:
             policy = Path(directory) / "policy"

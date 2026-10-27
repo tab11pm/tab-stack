@@ -32,8 +32,8 @@ success. Runtime diagnostics are in `$XDG_RUNTIME_DIR/shoji-lock/locker.log`.
 
 ## PAM and portability
 
-The launcher prefers `/etc/pam.d/shoji-lock`, then `omarchy-lock-password`,
-`swaylock`, or `hyprlock`. On Arch/Manjaro/Omarchy, the bundled `pam/shoji-lock`
+The launcher uses `/etc/pam.d/shoji-lock` when present and never inherits another
+locker's PAM service. On Arch/Manjaro/Omarchy, the bundled `pam/shoji-lock`
 fallback includes the installed `system-auth` and `system-local-login` policies.
 Its private runtime directory links the distro's PAM files so transitive includes
 resolve correctly. No root-owned file is changed.

@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
+import "SwitcherInput" as Native
 
 // The Alt+Tab overlay: a horizontal MRU stack of window cards, newest in front.
 // Built per output and mounted from WallpaperScreen; the state lives in the
@@ -11,6 +12,13 @@ import Quickshell
 FocusScope {
     id: root
     focus: true
+    readonly property var inputWindow: root.Window.window
+    onInputWindowChanged: Native.InputState.watch(inputWindow)
+    Component.onDestruction: Native.InputState.unwatch(inputWindow)
+    Connections {
+        target: Native.InputState
+        function onAltReleased(): void { Switcher.commit(); }
+    }
 
     readonly property real expandedWidth: Math.min(320, width * 0.22)
     readonly property real collapsedWidth: Math.min(196, width * 0.13)
@@ -28,7 +36,10 @@ FocusScope {
         return Math.round(m / 60) + " ч назад";
     }
 
-    Component.onCompleted: forceActiveFocus()
+    Component.onCompleted: {
+        forceActiveFocus();
+        Native.InputState.watch(inputWindow);
+    }
     Keys.onEscapePressed: Switcher.cancel()
     Keys.onReturnPressed: Switcher.commit()
     Keys.onEnterPressed: Switcher.commit()

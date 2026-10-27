@@ -16,7 +16,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm, stat } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -44,6 +44,15 @@ function windowData(used, minutes, reset, label = period(minutes)) {
 
 function normalize(provider, raw) {
     if (!record(raw)) fail();
+    if (provider === 'claude') {
+        return [['five_hour', 300, '5 ч'], ['seven_day', 10080, '7 дн'],
+            ['seven_day_sonnet', 10080, 'Sonnet · 7 дн'], ['seven_day_opus', 10080, 'Opus · 7 дн']]
+            .flatMap(([key, duration, label]) => {
+                const quota = raw[key];
+                return record(quota) && (number(quota.utilization) !== null || timestamp(quota.resets_at) !== null)
+                    ? [windowData(quota.utilization, duration, quota.resets_at, label)] : [];
+            });
+    }
     if (provider === 'codex') {
         // Only the default Codex bucket; Spark/model-specific quotas are separate.
         const bucket = raw.rateLimits ?? raw.rateLimitsByLimitId?.codex;
@@ -181,6 +190,54 @@ async function fetchJson(url, token, headers = {}) {
     if (response.status === 401 || response.status === 403) fail('auth');
     if (!response.ok) fail();
     return JSON.parse((await responseBytes(response)).toString('utf8'));
+}
+
+function claudeCacheFresh(cached, credentialMtime, now = Date.now()) {
+    return number(cached?.fetchedAt) !== null && cached.fetchedAt >= credentialMtime
+        && cached.fetchedAt <= now && now - cached.fetchedAt < 300000;
+}
+
+async function claude() {
+    // Share a five-minute cache between both widgets; never persist credentials.
+    const directory = join(process.env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'shoji-shell');
+    const cachePath = join(directory, 'claude-limits.json');
+    const lockPath = join(directory, 'claude-limits.lock');
+    const credentialPath = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), '.credentials.json');
+    const credentialMtime = await stat(credentialPath).then(value => value.mtimeMs, () => 0);
+    try {
+        const cached = JSON.parse(await readFile(cachePath, 'utf8'));
+        if (claudeCacheFresh(cached, credentialMtime)) {
+            if (cached.state !== 'available') fail(cached.state);
+            if (normalize('claude', cached.raw).length) return { ...cached.raw, fetchedAt: cached.fetchedAt };
+        }
+    } catch (error) {
+        if (['auth', 'missing', 'unavailable'].includes(error.message)) throw error;
+    }
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    try {
+        if (Date.now() - (await stat(lockPath)).mtimeMs > 30000) await rm(lockPath, { recursive: true, force: true });
+    } catch {}
+    try { await mkdir(lockPath, { mode: 0o700 }); }
+    catch { fail(); }
+    try {
+        let credentials;
+        try { credentials = JSON.parse(await readFile(credentialPath, 'utf8')); }
+        catch (error) { fail(error.code === 'ENOENT' ? 'missing' : 'auth'); }
+        const oauth = credentials.claudeAiOauth;
+        if (!record(oauth) || typeof oauth.accessToken !== 'string' || !oauth.accessToken.trim()
+            || number(oauth.expiresAt) !== null && number(oauth.expiresAt) <= Date.now()) fail('auth');
+        const raw = await fetchJson('https://api.anthropic.com/api/oauth/usage', oauth.accessToken, {
+            'anthropic-beta': 'oauth-2025-04-20'
+        });
+        if (!normalize('claude', raw).length) fail();
+        const fetchedAt = Date.now();
+        await writeFile(cachePath, JSON.stringify({ state: 'available', fetchedAt, raw }), { mode: 0o600 });
+        return { ...raw, fetchedAt };
+    } catch (error) {
+        const state = ['auth', 'missing'].includes(error.message) ? error.message : 'unavailable';
+        await writeFile(cachePath, JSON.stringify({ state, fetchedAt: Date.now() }), { mode: 0o600 });
+        fail(state);
+    } finally { await rm(lockPath, { recursive: true, force: true }); }
 }
 
 async function responseBytes(response) {
@@ -353,6 +410,18 @@ async function kimi() {
 
 if (process.argv.includes('--self-check')) {
     const { default: assert } = await import('node:assert/strict');
+    assert.equal(claudeCacheFresh({ fetchedAt: 1000 }, 2000, 3000), false);
+    assert.equal(claudeCacheFresh({ fetchedAt: 2000 }, 1000, 3000), true);
+    assert.equal(claudeCacheFresh({ fetchedAt: 1000 }, 1000, 301000), false);
+    assert.equal(claudeCacheFresh({ fetchedAt: 4000 }, 1000, 3000), false);
+    assert.deepEqual(normalize('claude', {
+        five_hour: { utilization: 25, resets_at: '2026-10-12T12:00:00Z' },
+        seven_day: { utilization: 61, resets_at: '2026-10-16T12:00:00Z' },
+        seven_day_sonnet: null
+    }).map(w => [w.label, w.remaining]), [['5 ч', 75], ['7 дн', 39]]);
+    assert.deepEqual(normalize('claude', { five_hour: null, seven_day: {} }), []);
+    assert.equal(normalize('claude', { five_hour: { utilization: 0 } })[0].remaining, 100);
+    assert.equal(normalize('claude', { seven_day_opus: { utilization: 100 } })[0].remaining, 0);
     assert.equal(resetCredits({ rateLimitResetCredits: { availableCount: 4 } }), 4);
     assert.equal(resetCredits({ rateLimitResetCredits: { availableCount: 0 } }), 0);
     assert.equal(resetCredits({ rateLimitResetCredits: null }), null);
@@ -399,12 +468,12 @@ if (process.argv.includes('--self-check')) {
     process.stdout.on('error', () => { for (const child of children) stop(child); process.exitCode = 1; });
     // ponytail: one-shot CLI readers avoid idle servers; keep connections only if startup cost becomes noticeable.
     const selected = process.argv.find(arg => arg.startsWith("--providers="))?.slice("--providers=".length).split(",");
-    await Promise.all(Object.entries({ codex, grok, kimi }).filter(([id]) => !selected || selected.includes(id)).map(async ([id, read]) => {
+    await Promise.all(Object.entries({ codex, claude }).filter(([id]) => !selected || selected.includes(id)).map(async ([id, read]) => {
         try {
             const raw = await read();
             const windows = normalize(id, raw);
             if (!windows.length) fail();
-            process.stdout.write(JSON.stringify({ id, state: 'available', fetchedAt: Date.now(), windows,
+            process.stdout.write(JSON.stringify({ id, state: 'available', fetchedAt: id === 'claude' ? raw.fetchedAt : Date.now(), windows,
                 ...(id === 'codex' ? { resetCredits: resetCredits(raw) } : {}) }) + '\n');
         } catch (error) {
             process.stdout.write(JSON.stringify({ id, state: ['auth', 'missing'].includes(error.message) ? error.message : 'unavailable', windows: [] }) + '\n');

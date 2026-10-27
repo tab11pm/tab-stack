@@ -29,20 +29,18 @@ Popup {
     property string deletePendingId: ""
     readonly property var selectedLayout: libraryDraft.layouts.find(value => value.id === selectedLayoutId) || libraryDraft.layouts[0]
     readonly property bool protectedLayout: selectedLayoutId === "empty"
-    readonly property var draft: {
-        const value = LayoutState.fromLayout(selectedLayout);
-        for (const id of Object.keys(value.layout.widgets))
-            value.layout.widgets[id].output = LayoutState.resolveOutput(value.layout.widgets[id].output, screenInfos, WidgetLayouts.primaryOutputName);
-        return value;
-    }
+    readonly property var draft: LayoutState.fromLayout(selectedLayout)
     property string selectedId: ""
     property string error: ""
     property bool applying: false
     readonly property bool busy: applying || CustomWidgetLayout.saving || Wallpapers.saving || LiveWallpapers.busy
     readonly property var selectedPlacement: draft.layout.widgets[selectedId] || null
     readonly property var outputOptions: {
-        const result = screenInfos.map(s => ({ name: s.name, label: s.name }));
-        if (selectedPlacement && !result.some(s => s.name === selectedPlacement.output))
+        const result = [
+            { name: "primary", label: "Главный экран" },
+            { name: "secondary", label: WidgetLayouts.secondaryOutput ? "Второй экран" : "Второй экран · не подключён" }
+        ];
+        if (selectedPlacement && !["primary", "secondary", "right"].includes(selectedPlacement.output))
             result.push({ name: selectedPlacement.output, label: selectedPlacement.output + " · не подключён" });
         return result;
     }
@@ -93,9 +91,8 @@ Popup {
     }
     function addWidget(id) {
         if (busy || protectedLayout || !Settings.enabled(id) || draft.layout.widgets[id]) return;
-        const output = screenInfos.find(s => s.name === WidgetLayouts.primaryOutputName) || screenInfos[0];
-        if (!output) { error = "Подключи монитор для добавления виджета."; return; }
-        commitWidgets(LayoutState.add(draft, id, { output: output.name, horizontal: "center", vertical: "center", x: 0, y: 0 }));
+        if (!screenInfos.length) { error = "Подключи монитор для добавления виджета."; return; }
+        commitWidgets(LayoutState.add(draft, id, { output: "primary", horizontal: "center", vertical: "center", x: 0, y: 0 }));
         selectedId = id; error = "";
     }
     function removeWidget(id) {
@@ -108,10 +105,11 @@ Popup {
         if (busy || protectedLayout) return;
         const screen = screenInfos.find(s => s.name === outputName);
         const entry = LayoutState.catalog.find(item => item.id === id);
-        if (!screen || !entry) return;
+        const role = LayoutState.roleForOutput(outputName, screenInfos, WidgetLayouts.primaryOutputName);
+        if (!screen || !entry || !role) return;
         const size = canvas.sizeFor(id, screen);
         const position = LayoutState.clampPosition(x, y, size.width, size.height, screen);
-        commitWidgets(LayoutState.place(draft, id, { output: outputName, horizontal: "left", vertical: "top", x: position.x, y: position.y }));
+        commitWidgets(LayoutState.place(draft, id, { output: role, horizontal: "left", vertical: "top", x: position.x, y: position.y }));
         selectedId = id; error = "";
     }
     function setPlacementField(field, value) {
@@ -246,6 +244,7 @@ Popup {
                     objectName: "layoutCanvas"
                     Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: root.height < 650 ? 120 : 170
                     draft: root.draft; screens: root.screenInfos; selectedId: root.selectedId
+                    primary: WidgetLayouts.primaryOutputName
                     enabled: !root.busy
                     onSelected: widgetId => root.selectedId = widgetId
                     onMoved: (widgetId, outputName, localX, localY) => root.moveWidget(widgetId, outputName, localX, localY)

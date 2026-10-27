@@ -6,6 +6,7 @@ Item {
     id: root
     required property var draft
     required property var screens
+    required property string primary
     property string selectedId: ""
     signal selected(string widgetId)
     signal moved(string widgetId, string outputName, real localX, real localY)
@@ -45,7 +46,8 @@ Item {
                 text: monitor.modelData.name; font.pixelSize: 11; color: Theme.muted
             }
             Repeater {
-                model: Object.keys(root.draft.layout.widgets).filter(id => root.draft.layout.widgets[id].output === monitor.modelData.name)
+                model: Object.keys(root.draft.layout.widgets).filter(id =>
+                    LayoutState.resolveOutput(root.draft.layout.widgets[id].output, root.screens, root.primary) === monitor.modelData.name)
                 delegate: Rectangle {
                     id: tile
                     objectName: "widget-" + modelData

@@ -26,3 +26,6 @@ activity.sqlite3*
 backups/
 
 shortcuts.json
+
+*.so
+*.o

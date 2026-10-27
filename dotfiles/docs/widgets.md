@@ -24,9 +24,10 @@ DeepSeek reads a separate local key file after explicit opt-in.
 | --- | --- |
 | `SHOJI_ENABLE_GITHUB=1` | `gh` logged into **your** account; reads notifications, PRs, issues and discussion replies. Does not mark notifications read. Writes a local cache. |
 | `SHOJI_ENABLE_DEEPSEEK=1` | Your DeepSeek API key in a separate private file; polls balance, caches locally and estimates spend from observed decreases. Does not submit model requests. |
-| `SHOJI_ENABLE_LIMITS=1` | Node.js and your installed/authenticated Codex CLI; queries quotas through its local protocol adapter. Missing providers show unavailable. CLI token refresh may update the CLI's own credential store. |
+| `SHOJI_ENABLE_LIMITS=1` | Node.js and your installed/authenticated Codex or Claude Code; Codex uses its local protocol adapter, Claude uses the local OAuth credential store and a five-minute shared cache. Missing providers show unavailable. CLI token refresh may update the CLI's own credential store. |
 | `SHOJI_ENABLE_SESSIONS=1` | Your local Codex/OpenCode session stores; reads titles and working-directory metadata. Clicking a session copies its resume command using `wl-copy`; it does not run it. Widget archiving writes its own local SQLite index. |
 | `SHOJI_ENABLE_HERMES=1` | A compatible Hermes checkout/venv with `tui_gateway.entry`; starts only when you submit a message. It is a real agent with your configured tools, permissions and model costs. |
+| `SHOJI_ENABLE_ACTIVITY=1` | Enables local application/time accounting. Stores app IDs and intervals locally; pauses on lock, disconnection and idle. No window titles or browser history are collected. |
 | `SHOJI_ENABLE_WEATHER=1` | `SHOJI_WEATHER_CITIES` with exactly two `[id,name,latitude,longitude]` entries. Sends those coordinates to Open-Meteo; no API key is required. |
 
 Hermes uses `${HOME}/.hermes/hermes-agent` by default; override `SHOJI_HERMES_ROOT`.
@@ -67,8 +68,11 @@ and child sessions are excluded. The widget copies `opencode --session <id>`
 from the session's directory, and never starts the agent. Its own archive remains
 separate from OpenCode's database.
 
-Quota displays now query Codex only; OpenCode sessions do not imply an OpenCode
-quota source. The public status row selects OpenAI, Claude and DeepSeek. Legacy
+Quota displays query Codex and Claude Code; OpenCode sessions do not imply an
+OpenCode quota source. Claude reads `.credentials.json` from `CLAUDE_CONFIG_DIR`
+(default `~/.claude`) only after the limits opt-in. It queries the provider usage
+endpoint without following redirects or refreshing credentials, and caches quota
+responses privately for five minutes. Credential-file changes invalidate the cache. The public status row selects OpenAI, Claude and DeepSeek. Legacy
 Grok/Kimi parsing remains available in the quota adapter for explicit reuse, but
 these widgets do not launch those CLIs.
 
@@ -113,3 +117,12 @@ The installed music and battery components retain their existing visual treatmen
 A synthetic offscreen preview checked available, missing-key and authentication
 error states without enabling the account collector. The layout and colors were
 compared with these source references; no personal desktop screenshot is bundled.
+
+## Local activity accounting
+
+Activity accounting is off until `SHOJI_ENABLE_ACTIVITY=1` is set in the installed
+integration file. Both the QML collector and its direct Python entrypoint enforce
+this choice before creating history or probing desktop state. After opting in,
+`Super+Ctrl+T` pauses/resumes tracking. Viewing mode keeps passive viewing time
+and inhibits this shell's optional automatic sleep. Activity history stays in
+`$XDG_STATE_HOME/shoji-shell/activity.sqlite3`; it is never part of the source.
