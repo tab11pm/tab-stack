@@ -519,6 +519,10 @@ export class HybridWindowManager {
     width: number;
     height: number;
   } | null = null;
+  // Super+D show-desktop: ids hidden by the last toggle (null when the desktop
+  // is not hidden) plus the focused window to re-focus on restore.
+  private showDesktopHiddenWindowIds: string[] | null = null;
+  private showDesktopFocusWindowId: string | null = null;
   private workspaceGesture: WorkspaceGestureState | null = null;
   private workspaceGestureMode: WorkspaceGestureMode | null = null;
   private workspaceScrollGestureRectAnimationsCancelled = false;
@@ -1976,6 +1980,94 @@ export class HybridWindowManager {
       }
       return;
     }
+  }
+
+  /** Super+Up: one-way maximize (Windows parity; restore is Super+Down). */
+  public maximizeFocusedWindow() {
+    for (const workspace of this.workspaces.values()) {
+      const focused = workspace.focusedWindow();
+      if (!focused || !read(focused.isResizable)) {
+        continue;
+      }
+      if (!focused.state[WINDOW_STATE_MAXIMIZED]()) {
+        focused.maximize();
+      }
+      return;
+    }
+  }
+
+  /**
+   * Super+Down, Windows parity: a maximized window restores to its normal
+   * rect; an already-normal window minimizes (same as Win+Down on Windows).
+   */
+  public restoreFocusedWindow() {
+    for (const workspace of this.workspaces.values()) {
+      const focused = workspace.focusedWindow();
+      if (!focused) {
+        continue;
+      }
+      if (focused.state[WINDOW_STATE_MAXIMIZED]()) {
+        focused.unmaximize();
+      } else {
+        focused.minimize();
+      }
+      return;
+    }
+  }
+
+  /**
+   * Super+D show-desktop: minimize every visible window on each monitor's
+   * active workspace (MateEngine pet stays). The next call restores exactly
+   * what this toggle hid and returns focus to the window that had it.
+   * Unminimize goes through `onWindowMinimizeRequest` directly — there is no
+   * client-side unminimize request; visibility is compositor-owned.
+   */
+  public toggleShowDesktop() {
+    if (this.showDesktopHiddenWindowIds) {
+      const hiddenIds = this.showDesktopHiddenWindowIds;
+      this.showDesktopHiddenWindowIds = null;
+      const focusId = this.showDesktopFocusWindowId;
+      this.showDesktopFocusWindowId = null;
+      for (const id of hiddenIds) {
+        const window = this.findWindowById(id);
+        if (!window?.state[WINDOW_STATE_MINIMIZED]()) {
+          continue;
+        }
+        this.onWindowMinimizeRequest({
+          window,
+          minimized: false,
+          source: "keybind",
+          timestamp: Date.now(),
+        });
+      }
+      if (focusId) {
+        this.findWindowById(focusId)?.focus();
+      }
+      return;
+    }
+
+    const hidden: string[] = [];
+    let focusWindowId: string | null = null;
+    for (const workspace of this.workspaces.values()) {
+      if (!workspace.isActive()) {
+        continue;
+      }
+      for (const window of workspace.listWindows()) {
+        if (window.state[WINDOW_STATE_MINIMIZED]()) {
+          continue;
+        }
+        if (isMateEngineWindow(window)) {
+          continue;
+        }
+        if (window.isFocused()) {
+          focusWindowId = window.id;
+        }
+        hidden.push(window.id);
+        window.minimize();
+      }
+    }
+    this.showDesktopHiddenWindowIds = hidden.length > 0 ? hidden : null;
+    this.showDesktopFocusWindowId = focusWindowId;
   }
 
   public isWindowAboveFullscreen(window: WaylandWindow): boolean {

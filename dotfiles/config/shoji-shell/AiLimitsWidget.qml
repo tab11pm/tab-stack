@@ -15,7 +15,8 @@ Item {
         { id: "deepseek", name: "DeepSeek", state: "loading", url: "https://status.deepseek.com/" }
     ]
     property var providers: [
-        { id: "codex", name: "ChatGPT", source: "Codex", state: "loading", windows: [] }
+        { id: "codex", name: "ChatGPT", source: "Codex", state: "loading", windows: [] },
+        { id: "claude", name: "Claude", source: "Claude Code", state: "loading", windows: [] }
     ]
     implicitWidth: 286
     implicitHeight: content.implicitHeight + 40
@@ -38,7 +39,7 @@ Item {
         id: collector
         running: true
         onStarted: root.receivedProviders = []
-        command: ["node", Qt.resolvedUrl("ai-limits.mjs").toString().replace("file://", ""), "--providers=codex"]
+        command: ["node", Qt.resolvedUrl("ai-limits.mjs").toString().replace("file://", ""), "--providers=codex,claude"]
         stdout: SplitParser {
             onRead: data => {
                 try { root.updateProvider(JSON.parse(data)); }
@@ -149,7 +150,7 @@ Item {
                     required property var modelData
                     Layout.fillWidth: true
                     spacing: 10
-                    readonly property bool stale: modelData.state !== "available" || !!modelData.fetchedAt && clock.date.getTime() - modelData.fetchedAt > 120000
+                    readonly property bool stale: modelData.state !== "available" || !!modelData.fetchedAt && clock.date.getTime() - modelData.fetchedAt > (modelData.id === "claude" ? 600000 : 120000)
                     readonly property bool known: modelData.windows.length > 0 && modelData.windows.every(w => typeof w.remaining === "number" && isFinite(w.remaining))
                     readonly property real used: known ? 100 - Math.min.apply(null, modelData.windows.map(w => w.remaining)) : 0
                     readonly property bool resetsKnown: !stale && Number.isInteger(modelData.resetCredits) && modelData.resetCredits >= 0

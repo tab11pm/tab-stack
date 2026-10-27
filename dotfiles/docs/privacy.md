@@ -28,6 +28,11 @@ colors and geometry. Those are the desktop configuration being shared, not accou
 or device credentials. Loopback URLs in the limits adapter address a temporary
 local CLI server; provider API URLs are public service endpoints without secrets.
 
+Local activity accounting also requires explicit `SHOJI_ENABLE_ACTIVITY=1`.
+The source includes the native switcher helper; compiled `.so` libraries and
+object files are generated locally and excluded from publication. Native library
+paths are rendered only in installed copies.
+
 ## What becomes private after installation
 
 `integrations.env`, selected wallpaper paths, dock pins, widget caches, session

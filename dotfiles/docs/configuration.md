@@ -22,6 +22,9 @@ Bindings live in `shojiwm/src/index.tsx`; behavior lives in `src/window-manager.
 | `Super+S` | Toggle tiling for the current workspace |
 | `Super+F` | Fullscreen with client chrome |
 | `Super+M` | Maximize/restore |
+| `Super+Up` | Maximize the focused resizable window |
+| `Super+Down` | Restore a maximized window; otherwise minimize it |
+| `Super+D` | Show desktop; press again to restore the windows hidden by this action |
 | `Super+Left/Right` | Focus previous/next window |
 | `Super+Shift+Left/Right` | Reorder windows |
 | `Super+Ctrl+Up/Down` | Switch workspace |
@@ -153,3 +156,18 @@ No Authme workaround or recorder autostart is installed by this bundle.
 See the [desktop update](update-2026-10-12.md) for the widget editor, Alt+Tab,
 local activity accounting, night filter, optional automatic sleep and screenshot
 fallback. See [session setup](session.md) for the separately installed login entry.
+
+## Portable widget output roles
+
+The layout editor stores **Primary** and **Secondary** output roles for the first
+two screens. These follow a changed primary choice rather than pinning a layout
+to connector names. A secondary widget remains absent while no second screen is
+connected. Dragging to additional screens retains their explicit connector name.
+Saved live wallpaper layers that require disconnected outputs are suspended;
+independent layers on connected screens remain usable and suspended layers return
+when their outputs reconnect.
+
+The Alt+Tab helper reads synchronized modifier state when its window gains focus,
+so releasing Alt before that window maps still completes the selection. It keeps
+the normal Qt key-release path for later releases. See the native build step in
+[installation](install.md).

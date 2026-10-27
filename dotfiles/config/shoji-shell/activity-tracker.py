@@ -204,12 +204,15 @@ def main():
     parser.add_argument('--database',type=Path)
     parser.add_argument('--lock-status',action='store_true')
     args=parser.parse_args()
-    if args.lock_status:
-        print(json.dumps(probe_lock(Path(__file__).resolve().parent)),flush=True)
-        return 0
     if args.self_check:
         import subprocess
         return subprocess.call([sys.executable,str(Path(__file__).with_name('test-activity-tracker.py'))])
+    if os.environ.get('SHOJI_ENABLE_ACTIVITY') != '1':
+        print('Activity accounting is disabled; opt in locally first', file=sys.stderr)
+        return 1
+    if args.lock_status:
+        print(json.dumps(probe_lock(Path(__file__).resolve().parent)),flush=True)
+        return 0
     os.umask(0o077)
     path=args.database or Path(os.environ.get('XDG_STATE_HOME',str(Path.home()/'.local/state')))/'shoji-shell/activity.sqlite3'
     try:

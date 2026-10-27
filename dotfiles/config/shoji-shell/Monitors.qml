@@ -24,16 +24,32 @@ Singleton {
     property bool loaded: false
     property int sequence: 0
     property var requests: ({})
+    property var socket: null
+
+    function reconnect() {
+        ready = false;
+        busy = false;
+        requests = ({});
+        if (socket) {
+            const previous = socket;
+            socket = null;
+            previous.destroy();
+        }
+        socket = socketComponent.createObject(root);
+        if (!socket) error = "Не удалось открыть соединение с ShojiWM";
+        else if (socket.connected) start();
+    }
 
     function send(method, params) {
-        if (!socket.connected) { error = "Нет связи с ShojiWM"; busy = false; return; }
+        if (!socket || !socket.connected) { error = "Нет связи с ShojiWM"; busy = false; return; }
         const id = ++sequence;
         requests[id] = method;
         socket.write(JSON.stringify({ id, method, params: params || {} }) + "\n");
         socket.flush();
     }
     function start() {
-        if (!loaded || !socket.connected) return;
+        if (!loaded || !socket || !socket.connected) return;
+        error = "";
         if (document) send("monitors.restore", document);
         else send("monitors.get");
     }
@@ -75,14 +91,17 @@ Singleton {
         if (resetDraft || changed || (!dirty && !previewing)) reset();
         if (lostDraft) error = "Состав мониторов изменился. Проверь настройки заново.";
     }
-    onActiveChanged: { if (active) send("monitors.get"); }
+    onActiveChanged: { if (active) { if (socket && socket.connected) send("monitors.get"); else reconnect(); } }
+    Component.onCompleted: reconnect()
     Connections {
         target: Quickshell
         function onScreensChanged(): void { if (root.ready) root.send("monitors.get"); }
     }
     Timer { interval: 1000; repeat: true; running: root.previewing; onTriggered: root.now = Date.now() }
     Timer { interval: 3000; repeat: true; running: root.active && !root.busy; onTriggered: root.send("monitors.get") }
-    Timer { interval: 2000; repeat: true; running: !socket.connected; onTriggered: socket.connected = true }
+    // Quickshell can retain a failed QLocalSocket after ConnectionRefusedError.
+    // Recreate the Socket object so a later ShojiWM reload can be reached.
+    Timer { interval: 2000; repeat: true; running: true; onTriggered: { if (!root.socket || !root.socket.connected) root.reconnect(); } }
     FileView {
         id: storage
         path: Settings.configHome + "/shoji-shell/monitors.json"
@@ -100,44 +119,49 @@ Singleton {
         }
         onSaveFailed: root.error = "Настройки применены, но не сохранены на диск"
     }
-    Socket {
-        id: socket
-        path: Quickshell.env("XDG_RUNTIME_DIR") + "/shojiwm-" + Quickshell.env("WAYLAND_DISPLAY") + ".sock"
-        connected: true
-        onConnectionStateChanged: {
-            if (connected) root.start();
-            else { root.ready = false; root.busy = false; root.requests = ({}); }
-        }
-        parser: SplitParser {
-            onRead: data => {
-                try {
-                    const message = JSON.parse(data);
-                    if (message.event === "monitors.changed") {
-                        const ended = root.previewing && !message.payload.deadline;
-                        root.accept(message.payload, ended);
-                        return;
-                    }
-                    const method = root.requests[message.id];
-                    if (!method) return;
-                    delete root.requests[message.id];
-                    root.busy = false;
-                    if (message.error) {
-                        root.error = typeof message.error === "string" ? message.error : message.error.message || "Не удалось изменить настройки. Перезагрузи конфиг: Super+Shift+R.";
-                        return;
-                    }
-                    const saved = method === "monitors.confirm" || method === "monitors.apply-layout";
-                    if (method === "monitors.apply-layout") {
-                        // reconfigure queues the native change; its immediate snapshot
-                        // can still contain the old positions. Keep the accepted layout.
-                        message.result.outputs = message.result.outputs.map(o => Object.assign({}, o,
-                            message.result.settings.outputs.find(item => item.name === o.name) || {}));
-                    }
-                    root.accept(message.result, method === "monitors.cancel" || saved || method === "monitors.restore");
-                    if (saved) {
-                        root.document = message.result.settings;
-                        storage.setText(JSON.stringify(root.document, null, 2));
-                    }
-                } catch (failure) { root.busy = false; root.error = "Не удалось прочитать ответ ShojiWM"; }
+    Component {
+        id: socketComponent
+        Socket {
+            id: connection
+            path: Quickshell.env("XDG_RUNTIME_DIR") + "/shojiwm-" + Quickshell.env("WAYLAND_DISPLAY") + ".sock"
+            connected: true
+            onConnectionStateChanged: {
+                if (root.socket !== connection) return;
+                if (connected) root.start();
+                else { root.ready = false; root.busy = false; root.requests = ({}); }
+            }
+            parser: SplitParser {
+                onRead: data => {
+                    try {
+                        const message = JSON.parse(data);
+                        if (message.event === "monitors.changed") {
+                            const ended = root.previewing && !message.payload.deadline;
+                            root.accept(message.payload, ended);
+                            return;
+                        }
+                        const method = root.requests[message.id];
+                        if (!method) return;
+                        delete root.requests[message.id];
+                        root.busy = false;
+                        if (message.error) {
+                            root.error = typeof message.error === "string" ? message.error : message.error.message || "Не удалось изменить настройки. Перезагрузи конфиг: Super+Shift+R.";
+                            if (method === "monitors.restore") root.send("monitors.get");
+                            return;
+                        }
+                        const saved = method === "monitors.confirm" || method === "monitors.apply-layout";
+                        if (method === "monitors.apply-layout") {
+                            // reconfigure queues the native change; its immediate snapshot
+                            // can still contain the old positions. Keep the accepted layout.
+                            message.result.outputs = message.result.outputs.map(o => Object.assign({}, o,
+                                message.result.settings.outputs.find(item => item.name === o.name) || {}));
+                        }
+                        root.accept(message.result, method === "monitors.cancel" || saved || method === "monitors.restore");
+                        if (saved) {
+                            root.document = message.result.settings;
+                            storage.setText(JSON.stringify(root.document, null, 2));
+                        }
+                    } catch (failure) { root.busy = false; root.error = "Не удалось прочитать ответ ShojiWM"; }
+                }
             }
         }
     }

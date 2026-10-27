@@ -1,0 +1,20 @@
+import QtQuick.tooling 1.2
+
+Module {
+    Component {
+        name: "InputState"
+        prototype: "QObject"
+        exports: ["SwitcherInput/InputState 1.0"]
+        isSingleton: true
+        exportMetaObjectRevisions: [256]
+        Signal { name: "altReleased" }
+        Method {
+            name: "watch"
+            Parameter { name: "window"; type: "QWindow"; isPointer: true }
+        }
+        Method {
+            name: "unwatch"
+            Parameter { name: "window"; type: "QWindow"; isPointer: true }
+        }
+    }
+}

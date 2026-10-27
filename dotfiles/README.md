@@ -99,3 +99,7 @@ separately, so an older result should not be read as proof of a newer change.
 
 Read [privacy](docs/privacy.md) before exporting files or screenshots. Issues
 and contributions belong in [tab-stack](https://github.com/tab11pm/tab-stack/issues).
+
+The [remaining system-source synchronization](docs/system-sync.md) records the
+latest monitor roles, window actions, Claude quotas, wallpaper recovery and
+passive Alt-release helper, together with opt-in and validation boundaries.

@@ -83,6 +83,8 @@ ShellRoot {
                 busy: LiveWallpapers.busy, active: LiveWallpapers.active,
                 pickerRequested: Wallpapers.targetOutput !== "", error: Wallpapers.error,
                 targetOutput: Wallpapers.targetOutput, primaryOutput: root.primaryOutputName,
+                suspendedLive: Wallpapers.liveLayers().length
+                    - (Wallpapers.renderableLive(Wallpapers.document) || { layers: [] }).layers.length,
                 outputs: Quickshell.screens.map(screen => screen.name) });
         }
     }
@@ -93,6 +95,10 @@ ShellRoot {
         function status(): string {
             return JSON.stringify({ ready: CustomWidgetLayout.ready, busy: WidgetEditor.busy,
                 targetOutput: WidgetEditor.targetOutput, layouts: WidgetLayouts.layouts.length,
+                primary: WidgetLayouts.primaryOutputName,
+                secondary: WidgetLayouts.secondaryOutput ? WidgetLayouts.secondaryOutput.name : "",
+                visibleWidgets: Object.keys(WidgetLayouts.current.widgets || {})
+                    .filter(id => !!WidgetLayouts.outputFor(id)),
                 error: CustomWidgetLayout.error });
         }
     }

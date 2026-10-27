@@ -72,6 +72,8 @@ def main():
             for shader in src.joinpath("shaders").glob("*.frag"):
                 if not shader.with_suffix(shader.suffix + ".qsb").is_file():
                     parser.error("Missing QML shader binaries; run scripts/build-shaders.sh first")
+            if not src.joinpath("SwitcherInput/libswitcherinputplugin.so").is_file():
+                parser.error("Missing switcher input plugin; run scripts/build-switcher-input.sh first")
         if src.name == "shojiwm" and not Path("/usr/lib/shojiwm/packages/shoji_wm").is_dir():
             parser.error("Install the pinned ShojiWM fork and runtime first")
     os.umask(0o077)
@@ -94,6 +96,11 @@ def main():
                 shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "shortcuts.json", "deepseek-api-key", "night-light.json", "idle-sleep.json", "widget-layouts.json", "node_modules"))
             else:
                 shutil.copy2(src, dst)
+            if dst == config / "shoji-shell":
+                module = dst / "SwitcherInput"
+                description = module / "qmldir"
+                description.write_text(description.read_text().replace(
+                    "@SWITCHER_INPUT_PATH@", json.dumps(str(module), ensure_ascii=False)))
             if dst == config / "shojiwm":
                 dst.joinpath("node_modules").mkdir()
                 dst.joinpath("node_modules/shoji_wm").symlink_to("/usr/lib/shojiwm/packages/shoji_wm", target_is_directory=True)

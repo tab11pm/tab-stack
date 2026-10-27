@@ -1,0 +1,3 @@
+module SwitcherInput
+plugin switcherinputplugin @SWITCHER_INPUT_PATH@
+typeinfo plugin.qmltypes

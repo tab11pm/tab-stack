@@ -87,4 +87,14 @@ assert.ok(call('apply-layout', request()).settings.outputs.some(o => o.name === 
 disable({ isReloading: true, persist: (_key, value) => { persisted = value; } });
 enable({ isReloading: true, restore: () => persisted });
 assert.ok(call('get').settings.outputs.some(o => o.name === 'DP-9'));
+
+// Replacing a display on the same connector must not discard other outputs.
+next = request();
+next.outputs[0].refreshRate = 75;
+next.outputs[1].y = 240;
+const restored = call('restore', next);
+assert.equal(restored.settings.outputs.some(o => o.name === 'DP-1'), false);
+assert.equal(outputs[1].position.y, 240);
+assert.equal(restored.primary, 'eDP-1');
+assert.throws(() => call('preview', next));
 console.log('Monitor validation, layout, preview rollback, confirmation and reload: OK');

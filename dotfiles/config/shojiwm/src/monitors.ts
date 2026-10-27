@@ -23,6 +23,7 @@ export function registerMonitors(server: IpcServer) {
       throw new Error("Некорректные настройки мониторов");
     const outputs = data.outputs;
     const names = new Set<string>();
+    const supported: Entry[] = [];
     for (const item of outputs) {
       if (!item || typeof item.name !== "string") throw new Error("Некорректный монитор");
       const output = COMPOSITOR.output.get(item.name);
@@ -32,14 +33,20 @@ export function registerMonitors(server: IpcServer) {
           || !Number.isInteger(item.x) || !Number.isInteger(item.y)
           || Math.abs(item.x) > 32768 || Math.abs(item.y) > 32768
           || item.scale < 0.5 || item.scale > 3
-          || item.width <= 0 || item.height <= 0 || item.refreshRate <= 0
-          || (output && !output.availableModes.some(m => m.width === item.width && m.height === item.height
-            && Math.abs(m.refreshRate - item.refreshRate) < 0.01)))
+          || item.width <= 0 || item.height <= 0 || item.refreshRate <= 0)
         throw new Error("Монитор не поддерживает выбранные параметры");
+      if (output?.enabled && !output.availableModes.some(m => m.width === item.width && m.height === item.height
+          && Math.abs(m.refreshRate - item.refreshRate) < 0.01)) {
+        // A different display can occupy a saved connector. Restore the other
+        // entries and let this output use the automatic best-mode fallback.
+        if (restoring) continue;
+        throw new Error("Монитор не поддерживает выбранные параметры");
+      }
+      supported.push({ ...item });
     }
     if (!restoring && (names.size !== COMPOSITOR.output.list.length || !names.has(data.primary)))
       throw new Error("Выбери главный экран и настрой все подключённые мониторы");
-    return { primary: data.primary, outputs: outputs.map(o => ({ ...o })) };
+    return { primary: data.primary, outputs: supported };
   }
   COMPOSITOR.output.configure(context => {
     const draft: DisplayConfigDraft = {};

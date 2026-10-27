@@ -9,8 +9,8 @@ Singleton {
     property string primaryOutputName: Monitors.primary
     readonly property var primaryOutput: Quickshell.screens.find(s => s.name === primaryOutputName)
         || Quickshell.screens[0] || null
-    readonly property var rightOutput: Quickshell.screens.reduce((right, screen) =>
-        !right || screen.x > right.x ? screen : right, null)
+    readonly property var secondaryOutput: Quickshell.screens.find(screen =>
+        screen.name !== (primaryOutput || {}).name) || null
     // Each entry owns its output and edge offsets. Add future arrangements here.
     readonly property var configuredLayouts: [
         { id: "empty", name: "Без виджетов", widgets: {} },
@@ -18,7 +18,7 @@ Singleton {
             home: { output: "primary", horizontal: "center", vertical: "center", x: 0, y: 0 }
         } },
         { id: "gaming-home-zone", name: "Home Zone · Gaming", widgets: {
-            "gaming-home": { output: "right", horizontal: "center", vertical: "center", x: 0, y: 0 }
+            "gaming-home": { output: "secondary", horizontal: "center", vertical: "center", x: 0, y: 0 }
         } },
         { id: "default", name: "Текущая раскладка", widgets: {
             limits: { output: "primary", horizontal: "left", vertical: "top", x: 16, y: 68 },
@@ -100,7 +100,7 @@ Singleton {
     }
     function screenFor(reference) {
         if (reference === "primary") return primaryOutput;
-        if (reference === "right") return rightOutput;
+        if (reference === "secondary" || reference === "right") return secondaryOutput;
         return Quickshell.screens.find(screen => screen.name === reference) || null;
     }
     function outputFor(id, layoutId) {

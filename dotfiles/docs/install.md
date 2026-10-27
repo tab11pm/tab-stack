@@ -57,12 +57,13 @@ the Wayland session entry and the ShojiWM portal. It replaces an existing system
 ShojiWM installation. `--no-config` keeps this separate from your user dotfiles.
 Do not run the user installer below with sudo.
 
-## 2. Build the launcher and Qt shaders
+## 2. Build the launcher, Qt shaders and switcher input plugin
 
 ```bash
 # Back in the tab-stack root:
 ./dotfiles/scripts/build-walker.sh
 ./dotfiles/scripts/build-shaders.sh
+./dotfiles/scripts/build-switcher-input.sh
 ```
 
 Walker is fetched at an exact revision, patched, built with `--locked`, then installed
@@ -74,6 +75,14 @@ The shader script writes three `.frag.qsb` files beside the QML shader sources.
 These generated files are ignored by Git but copied during installation. The
 compositor's `src/effect/*.frag` files are compiled by ShojiWM at runtime and must
 **not** be passed to `qsb`. If needed, set `QSB=/path/to/qt6/bin/qsb`.
+
+The switcher helper is a small Qt 6 QML plugin built with the local Qt Core/Gui/Qml
+headers, Qt 6 moc, a C++17 compiler, pkg-config and wayland-client. It observes
+Alt after the switcher receives keyboard focus and an asynchronous Wayland sync;
+it does not intercept application input. The generated `.so` is ignored by Git.
+The installer checks it before replacing existing components and renders its
+native library path in the installed `SwitcherInput/qmldir`, including paths
+with spaces. Rebuild it after a Qt ABI change.
 
 ## 3. Preview and install user files
 

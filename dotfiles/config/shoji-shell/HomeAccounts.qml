@@ -12,7 +12,8 @@ Item {
     property string githubError: ""
     property var account: ({ state: "loading" })
     property var providers: [
-        { id: "codex", name: "ChatGPT", state: "loading", windows: [] }
+        { id: "codex", name: "ChatGPT", state: "loading", windows: [] },
+        { id: "claude", name: "Claude", state: "loading", windows: [] }
     ]
     SystemClock { id: clock; precision: SystemClock.Minutes }
     readonly property bool githubStale: !!githubError || !!github.fetchedAt && clock.date.getTime() - github.fetchedAt > 300000
@@ -70,7 +71,7 @@ Item {
         id: limits
         property var received: []
         running: Settings.enabled("limits")
-        command: ["node", decodeURIComponent(Qt.resolvedUrl("ai-limits.mjs").toString().replace("file://", "")), "--providers=codex"]
+        command: ["node", decodeURIComponent(Qt.resolvedUrl("ai-limits.mjs").toString().replace("file://", "")), "--providers=codex,claude"]
         onStarted: received = []
         stdout: SplitParser {
             onRead: data => {
@@ -98,7 +99,7 @@ Item {
     }
     readonly property color githubSurface: "#d8cdea"
     readonly property color deepseekSurface: "#efd0c0"
-    readonly property var quotaSurfaces: ["#c7e0d7", "#e6cddd", "#cbdcf0"]
+    readonly property var quotaSurfaces: ["#c7e0d7", "#efd0c0"]
     readonly property color tileInk: "#302b3b"
 
     component Counter: Button {
@@ -202,16 +203,19 @@ Item {
                 required property int index
                 required property var modelData
                 readonly property bool known: modelData.windows.length > 0 && modelData.windows.every(w => typeof w.remaining === "number" && isFinite(w.remaining))
-                readonly property bool stale: modelData.state !== "available" || !!modelData.fetchedAt && clock.date.getTime() - modelData.fetchedAt > 120000
+                readonly property bool stale: modelData.state !== "available" || !!modelData.fetchedAt && clock.date.getTime() - modelData.fetchedAt > (modelData.id === "claude" ? 600000 : 120000)
                 readonly property real used: known ? Math.max(0, Math.min(100, 100 - Math.min.apply(null, modelData.windows.map(w => w.remaining)))) : 0
                 readonly property string detail: modelData.name + " · расход лимита"
                     + (known ? "\n" + modelData.windows.map(w => w.label + ": " + Math.floor(100 - w.remaining) + "% · "
                         + (w.resetsAt ? "сброс " + Qt.formatDateTime(new Date(w.resetsAt), "dd.MM HH:mm") : "сброс неизвестен")).join("\n") : "\n" + root.status(modelData))
                     + (stale && known ? "\nДанные устарели" : "")
-                width: (root.width - 20) / 3; height: 124
+                width: (root.width - 10 * (root.providers.length - 1)) / root.providers.length; height: 124
                 hoverEnabled: true; focusPolicy: Qt.StrongFocus
                 Accessible.role: Accessible.Indicator
                 Accessible.name: detail
+                ToolTip.visible: hovered || activeFocus
+                ToolTip.delay: 400
+                ToolTip.text: detail
                 background: WidgetSurface {
                     radius: 22; color: root.quotaSurfaces[provider.index]
                     border.width: provider.activeFocus ? 2 : 0; border.color: root.tileInk
@@ -221,7 +225,7 @@ Item {
                         shadowVerticalOffset: 4; shadowBlur: 0.8; blurMax: 12
                     }
                 }
-                PanelIcon { x: 16; y: 15; width: 27; height: 27; name: "session-" + provider.modelData.id; tint: root.tileInk }
+                PanelIcon { x: 16; y: 15; width: 27; height: 27; name: provider.modelData.id === "claude" ? "provider-claude" : "session-" + provider.modelData.id; tint: root.tileInk }
                 UiText {
                     anchors { right: parent.right; top: parent.top; margins: 16 }
                     text: "!"; visible: provider.stale
