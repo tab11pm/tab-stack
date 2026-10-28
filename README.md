@@ -2,7 +2,7 @@
 
 Наш стек рабочего стола и инструментов для разработки: ShojiWM, Quickshell, Walker, скиллы, хуки и конфигурация AI-ассистентов. Репозиторий — [tab11pm/tab-stack](https://github.com/tab11pm/tab-stack).
 
-Стек развивается под наш сетап. Уже добавлена собственная блокировка экрана на Quickshell: `Super+L`, кнопка в профиле, системная проверка пароля и синхронизация ввода между мониторами. Автоблокировка пока не включена.
+Стек развивается под наш сетап. Уже добавлена собственная блокировка экрана на Quickshell: `Super+L`, кнопка в профиле, системная проверка пароля и синхронизация ввода между мониторами. Автоблокировка пока не включена. В системной панели также есть [управление мониторами](dotfiles/docs/monitors.md): расположение, главный экран, частота, масштаб с автоматическим откатом и яркость.
 
 Основа — [howdeploy/kisa-stack](https://github.com/howdeploy/kisa-stack). Авторские и лицензионные уведомления исходного проекта сохранены.
 
@@ -64,8 +64,12 @@
 
 - [shojiwm](skills/shojiwm) — configure the tab-stack desktop and understand its compositor, shell and launcher.
 - [shoji-shaders](skills/shoji-shaders) — create ShojiWM and Quickshell effects from visual references.
-
+- [tab-stack-feature](skills/tab-stack-feature) — перенос фичи в исходники стека, ветка от свежего `origin/main`, проверки, коммит и PR в наш форк.
 - [wine-hid-device-tools](skills/wine-hid-device-tools) - Запуск Windows-утилит для HID-клавиатур под Wine/PortProton/Bottles: диагностика hidraw, udev-правила, winebus-реестр — вместо «ставь виртуалку».
+
+`tab-stack-feature` подключён к Codex внутри проекта через `.agents/skills/`.
+Пример вызова: `$tab-stack-feature перенеси готовую фичу в стек и создай PR в мой форк`.
+Глобальная установка для других рабочих каталогов: `./install.sh tab-stack-feature --codex`.
 
 ### Личное
 

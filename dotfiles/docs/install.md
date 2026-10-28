@@ -96,7 +96,8 @@ Existing component directories are moved to a private backup beneath
 `$XDG_STATE_HOME/tab-stack/backups/` (default `~/.local/state`). Existing backups
 from the original installer remain in its previous directory. The printed
 `manifest.json` maps every target to its backup. Upgrades preserve an existing
-shell `integrations.env` and `wallpapers.json`; review those local files yourself.
+shell `integrations.env`, `wallpapers.json`, `wallpaper-groups.json` and
+`monitors.json`; review those local files yourself.
 Other local component changes remain in the backup, not merged into the new copy.
 
 For an isolated staging installation, use `--target-home /absolute/temporary/directory`.

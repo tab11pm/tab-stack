@@ -1,5 +1,7 @@
 integrations.env
 wallpapers.json
+monitors.json
+shortcuts.json
 wallpaper-groups.json
 *.local.*
 *.qsb

@@ -5,7 +5,7 @@ import Quickshell
 
 Singleton {
     id: root
-    property string primaryOutputName: Settings.primaryOutput
+    property string primaryOutputName: Monitors.primary
     readonly property var primaryOutput: Quickshell.screens.find(s => s.name === primaryOutputName)
         || Quickshell.screens[0] || null
     readonly property var rightOutput: Quickshell.screens.reduce((right, screen) =>

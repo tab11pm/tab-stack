@@ -16,6 +16,8 @@ ShellRoot {
         || Quickshell.screens[0] || null
     property string panelScreen: ""
     property string panelPage: ""
+    property string shortcutsOutput: ""
+    property bool shortcutManagerOpen: false
     property bool panelReady: false
     property var stats: ({})
     property double statsAt: 0
@@ -31,6 +33,28 @@ ShellRoot {
         target: "session"
         function lock(): void { LockScreen.request(); }
     }
+    function toggleShortcutWindow(outputName, manager) {
+        if (!Quickshell.screens.some(screen => screen.name === outputName)) return;
+        if (root.shortcutsOutput === outputName && root.shortcutManagerOpen === manager) {
+            root.shortcutsOutput = "";
+            return;
+        }
+        Wallpapers.cancel();
+        ScreenShaders.cancel();
+        root.panelPage = "";
+        root.shortcutManagerOpen = manager;
+        root.shortcutsOutput = outputName;
+    }
+    IpcHandler {
+        target: "shortcuts"
+        function toggle(outputName: string): void { root.toggleShortcutWindow(outputName, false); }
+        function close(): void { root.shortcutsOutput = ""; }
+    }
+    IpcHandler {
+        target: "shortcut-manager"
+        function toggle(outputName: string): void { root.toggleShortcutWindow(outputName, true); }
+        function close(): void { root.shortcutsOutput = ""; }
+    }
     IpcHandler {
         target: "wallpaper"
         function toggle(outputName: string): void { Wallpapers.toggle(outputName); }
@@ -43,11 +67,15 @@ ShellRoot {
     }
     Connections {
         target: Wallpapers
-        function onTargetOutputChanged(): void { if (Wallpapers.targetOutput !== "") root.panelPage = ""; }
+        function onTargetOutputChanged(): void {
+            if (Wallpapers.targetOutput !== "") { root.panelPage = ""; root.shortcutsOutput = ""; }
+        }
     }
     Connections {
         target: ScreenShaders
-        function onTargetOutputChanged(): void { if (ScreenShaders.targetOutput !== "") root.panelPage = ""; }
+        function onTargetOutputChanged(): void {
+            if (ScreenShaders.targetOutput !== "") { root.panelPage = ""; root.shortcutsOutput = ""; }
+        }
     }
     function toggle(screenName, page) {
         if (panelScreen === screenName && panelPage === page) {

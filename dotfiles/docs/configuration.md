@@ -12,6 +12,8 @@ Bindings live in `shojiwm/src/index.tsx`; behavior lives in `src/window-manager.
 | --- | --- |
 | `Super+Return` | Ghostty |
 | `Super+Space` | Walker |
+| `Super+K` | Searchable keyboard shortcuts list |
+| `Super+Shift+K` | Keyboard shortcut manager |
 | `Super+L` | Lock the session with the custom Quickshell locker |
 | `Super+E` | Dolphin |
 | `Super+W` | Wallpaper and widget preset picker |
@@ -25,6 +27,14 @@ Bindings live in `shojiwm/src/index.tsx`; behavior lives in `src/window-manager.
 | `Super+Ctrl+Up/Down` | Switch workspace |
 | `Super+Shift+R` | Reload compositor configuration |
 | `Super+Shift+Q` | End compositor session (save your work first) |
+
+`Super+K` opens the original searchable shortcut list. `Super+Shift+K` opens the shortcut manager. Select a system action to change its
+combination, disable it, or restore the default. Add a named shell command with its
+own combination, then edit or delete it from the same list. Changes are saved to
+`shojiwm/shortcuts.json` in the installed configuration; press `Super+Shift+R` to
+apply them. `Super+K`, `Super+Shift+K`, compositor reload and session exit remain reserved so the
+manager and recovery controls stay reachable. The installer preserves this local
+file and never publishes personal commands.
 
 Keyboard layouts are `us,ru`, toggled with Alt+Shift. Change the input configuration
 for your languages and pointer/trackpad preferences. The public setup does not
@@ -41,11 +51,14 @@ requirements, validation and recovery if the locker crashes.
 
 ## Monitors, wallpaper and presets
 
-The compositor discovers connected outputs, extends them automatically, chooses
-their best mode and uses scale 1. Change `COMPOSITOR.output.configure` for different
-scaling, ordering or modes. The shell defaults to the first available output for
-the panel and desktop controls. Set `SHOJI_PRIMARY_OUTPUT` in the installed
-`shoji-shell/integrations.env` to select a specific output.
+Open the system panel → **Мониторы** (Monitors) to arrange outputs, choose the
+primary screen, refresh rate and scale. Mode/scale changes require confirmation
+within 15 seconds or they roll back. Confirmed settings are kept locally in
+`shoji-shell/monitors.json`; the installer preserves them on upgrades. See
+[monitor settings](monitors.md) for controls, fallback behavior and validation.
+Without a saved profile, connected outputs use their best mode, automatic
+extension and scale 1. `SHOJI_PRIMARY_OUTPUT` supplies the initial primary choice;
+the saved monitor profile takes precedence.
 
 The wallpaper library defaults to `~/Pictures/Wallpapers`; `SHOJI_WALLPAPERS` can
 override it. Your wallpaper collection is not part of this repository. A neutral
@@ -122,7 +135,8 @@ and privileged recovery actions are machine-specific.
 Ghostty's config retains the Mocha styling and physical-key EN/RU shortcuts. It
 expects zsh; change `command` and `shell-integration` together for another shell.
 The screenshot helper needs Flameshot, grim, Qt's `qtdiag6` and the portal setup.
-Brightness uses DDC/CI and `ddcutil`; grant access through your distribution's
+Brightness uses `brightnessctl` for internal displays and DDC/CI with `ddcutil`
+for external displays; grant access through your distribution's
 normal device rules if needed. It does not silently change permissions.
 
 ## Known interaction issue: GPU Screen Recorder

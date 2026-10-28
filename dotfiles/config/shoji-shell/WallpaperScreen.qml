@@ -12,6 +12,7 @@ Scope {
         WidgetLayouts.setTransition(output.name, null);
         if (Wallpapers.targetOutput === output.name) Wallpapers.cancel();
         if (ScreenShaders.targetOutput === output.name) ScreenShaders.cancel();
+        if (root.shell.shortcutsOutput === output.name) root.shell.shortcutsOutput = "";
     }
 
     PanelWindow {
@@ -230,6 +231,45 @@ Scope {
             interval: 3000
             running: shaderPicker.requested && shaderPickerLoader.status !== Loader.Ready
             onTriggered: ScreenShaders.cancel()
+        }
+    }
+    PanelWindow {
+        id: shortcutsWindow
+        screen: root.output
+        anchors { top: true; bottom: true; left: true; right: true }
+        readonly property bool requested: root.shell.shortcutsOutput === root.output.name
+        visible: requested && shortcutsLoader.status === Loader.Ready && !!shortcutsLoader.item
+        exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.namespace: "shoji-shortcuts"
+        WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        color: "transparent"
+        onVisibleChanged: { if (visible) shortcutsLoader.forceActiveFocus(); }
+        Component {
+            id: listComponent
+            Shortcuts { onCloseRequested: root.shell.shortcutsOutput = "" }
+        }
+        Component {
+            id: managerComponent
+            ShortcutManager { onCloseRequested: root.shell.shortcutsOutput = "" }
+        }
+        Loader {
+            id: shortcutsLoader
+            anchors.fill: parent
+            focus: true
+            active: shortcutsWindow.requested
+            sourceComponent: root.shell.shortcutManagerOpen ? managerComponent : listComponent
+            onStatusChanged: {
+                if (status === Loader.Error) {
+                    console.warn("Could not load the shortcuts window");
+                    root.shell.shortcutsOutput = "";
+                }
+            }
+        }
+        Timer {
+            interval: 3000
+            running: shortcutsWindow.requested && shortcutsLoader.status !== Loader.Ready
+            onTriggered: root.shell.shortcutsOutput = ""
         }
     }
 }

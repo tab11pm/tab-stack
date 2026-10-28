@@ -168,6 +168,19 @@ ColumnLayout {
         }
     }
 
+    ConnectionTile {
+        Layout.fillWidth: true
+        text: "Мониторы"; glyph: "brightness"
+        subtitle: Quickshell.screens.length + " · расположение, частота и масштаб"
+        expanded: panel.section === "monitors"
+        onClicked: panel.section = panel.section === "monitors" ? "" : "monitors"
+    }
+    MonitorSettings {
+        Layout.fillWidth: true
+        visible: panel.section === "monitors"
+        active: panel.active && visible
+    }
+
     UiText { text: "Звук и экран"; color: Theme.muted; font.pixelSize: 11; font.weight: Font.Medium; Layout.topMargin: 4 }
     Rectangle {
         Layout.fillWidth: true

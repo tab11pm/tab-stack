@@ -32,6 +32,8 @@ SnowLayer 1.0 SnowLayer.qml
 WallpaperPicker 1.0 WallpaperPicker.qml
 singleton ScreenShaders 1.0 ScreenShaders.qml
 ShaderPicker 1.0 ShaderPicker.qml
+Shortcuts 1.0 Shortcuts.qml
+ShortcutManager 1.0 ShortcutManager.qml
 WallpaperTransition 1.0 WallpaperTransition.qml
 WallpaperImage 1.0 WallpaperImage.qml
 WidgetWaveLoader 1.0 WidgetWaveLoader.qml
@@ -60,3 +62,7 @@ HomeZonePreview 1.0 HomeZonePreview.qml
 GamingHomeZone 1.0 GamingHomeZone.qml
 GamingHomeZonePreview 1.0 GamingHomeZonePreview.qml
 GamingProcessList 1.0 GamingProcessList.qml
+
+singleton Monitors 1.0 Monitors.qml
+MonitorSettings 1.0 MonitorSettings.qml
+MonitorChoice 1.0 MonitorChoice.qml
