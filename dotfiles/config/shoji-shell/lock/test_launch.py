@@ -12,6 +12,38 @@ spec.loader.exec_module(launch)
 
 
 class LauncherTests(unittest.TestCase):
+    def test_expired_deadline_never_spawns_a_locker(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(launch.subprocess, 'Popen') as spawn:
+            with self.assertRaisesRegex(RuntimeError, 'deadline'):
+                launch.start({}, Path(directory), deadline=launch.time.monotonic() - 1)
+            spawn.assert_not_called()
+
+    def test_deadline_bounds_ipc_and_qml_subprocesses(self):
+        deadline = launch.time.monotonic() + .2
+        result = subprocess.CompletedProcess([], 0, 'SHOJI_LOCK_CHECK_OK ext_session_lock_manager_v1', '')
+        with patch.object(launch.subprocess, 'run', return_value=result) as run:
+            launch.check({}, deadline=deadline)
+            self.assertLessEqual(run.call_args.kwargs['timeout'], .2)
+        result = subprocess.CompletedProcess([], 0, '{"secure": true, "locked": true}', '')
+        with patch.object(launch.subprocess, 'run', return_value=result) as run:
+            launch.status(deadline=deadline)
+            self.assertLessEqual(run.call_args.kwargs['timeout'], .2)
+
+    def test_contended_launcher_lock_obeys_deadline(self):
+        import fcntl
+        with tempfile.TemporaryDirectory() as directory:
+            with (Path(directory) / 'launch.lock').open('a') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                before = launch.time.monotonic()
+                with self.assertRaisesRegex(RuntimeError, 'deadline'):
+                    launch.start({}, Path(directory), deadline=before + .03)
+                self.assertLess(launch.time.monotonic() - before, .3)
+
+    def test_malformed_ipc_status_cannot_claim_secure(self):
+        for raw in ('[]', 'true', 'null', '"secure"'):
+            with patch.object(launch.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, raw, '')):
+                self.assertIsNone(launch.status())
+
     def test_check_refuses_compositor_without_lock_protocol(self):
         result = subprocess.CompletedProcess([], 0, "SHOJI_LOCK_CHECK_OK", "")
         with patch.object(launch.subprocess, "run", return_value=result):

@@ -2,6 +2,10 @@
 
 ## Prerequisites
 
+For optional locking before external system sleep, see the separate
+[sleep-lock guide](sleep-lock.md). It requires an independent session and does
+not become enabled through the default component list.
+
 Use a working Linux Wayland/DRM system with a login manager, systemd user services,
 PipeWire, NetworkManager and BlueZ. The reference environment is recorded in
 [`sources.json`](../sources.json). Quickshell **0.3.1** modules, including

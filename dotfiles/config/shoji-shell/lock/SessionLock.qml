@@ -174,6 +174,6 @@ Item {
     IpcHandler {
         target: "session"
         // No unlock or password API is exposed over IPC.
-        function status(): string { return JSON.stringify({ locked: root.locked, secure: root.secure }); }
+        function status(): string { return JSON.stringify({ locked: root.locked, secure: root.secure, pid: Quickshell.processId }); }
     }
 }
