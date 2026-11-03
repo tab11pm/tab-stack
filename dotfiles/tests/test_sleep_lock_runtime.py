@@ -71,6 +71,16 @@ class TaskTests(unittest.TestCase):
 
 
 class NotificationTests(unittest.TestCase):
+    def test_qml_status_reads_native_getters_when_root_notifications_are_stale(self):
+        source = (ROOT / 'config/shoji-shell/lock/SessionLock.qml').read_text()
+        line = next(line for line in source.splitlines() if 'function status()' in line)
+        expression = line.split('return ', 1)[1].rsplit(';', 1)[0]
+        result = subprocess.run(['node', '-e',
+            'const root={locked:false,secure:false}; const sessionLock={locked:true,secure:true}; '
+            'const Quickshell={processId:123}; console.log('+expression+');'],
+            text=True, capture_output=True, check=True)
+        self.assertEqual(json.loads(result.stdout), {'locked':True, 'secure':True, 'pid':123})
+
     def test_ready_notification_goes_to_only_configured_socket(self):
         send = Mock()
         with patch.object(runtime.socket, 'socket') as create:

@@ -2,6 +2,13 @@
 
 ## 2026-11-03 optional independent sleep monitor
 
+Host application preparation then preserved the installed direct native
+`sessionLock.locked/secure` getters in IPC status. Quickshell can omit forwarded
+root notifications on lock acquisition. A regression executes the actual status
+expression with stale root state: it failed before the correction and passed
+afterward. Full discovery after this correction: 99 passed, no skips; all twelve
+launcher tests and QML lint also passed. Installed files were still unchanged.
+
 Implemented on `feature/independent-sleep-lock` from main `0dc9d1e`, separately
 from unrelated root-checkout changes. No host installation, logout, reload,
 authentication, locking or suspend was performed.

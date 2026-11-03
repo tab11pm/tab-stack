@@ -80,7 +80,7 @@ Native execution authorized by “ок начни работу”. Existing root
 worktree have unrelated changes and are preserved. A managed worktree was created;
 edits are prepared in sandbox scratch, then copied there as scoped reviewed files.
 
-Validation: 98 full-discovery tests and 12 launcher tests passed, no skips;
+Validation: 99 full-discovery tests and 12 launcher tests passed, no skips;
 QML/offline units/read-only preflight passed. Private D-Bus and harmless native
 scope boundaries verified. Independent review found no Critical/Important issues.
 Documentation status updates complete the planned final documentation task.
