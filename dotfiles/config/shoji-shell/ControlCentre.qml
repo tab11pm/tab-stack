@@ -184,6 +184,7 @@ ColumnLayout {
     UiText { text: "Звук и экран"; color: Theme.muted; font.pixelSize: 11; font.weight: Font.Medium; Layout.topMargin: 4 }
     NightLightSettings { Layout.fillWidth: true }
     IdleSleepSettings { Layout.fillWidth: true }
+    CursorFxSettings { Layout.fillWidth: true }
     Rectangle {
         Layout.fillWidth: true
         implicitHeight: soundContent.implicitHeight + 24
