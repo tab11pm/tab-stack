@@ -64,3 +64,12 @@ xdg-user-dirs
 tesseract
 tesseract-data-eng
 tesseract-data-rus
+ninja
+cli11
+spirv-tools
+jemalloc
+wayland-protocols
+libdrm
+vulkan-headers
+qt6-5compat
+qt6-wayland

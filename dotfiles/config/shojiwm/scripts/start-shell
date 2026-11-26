@@ -7,4 +7,11 @@ if [[ -f "$settings" ]]; then
     source "$settings"
     set +a
 fi
-exec quickshell --no-duplicate --path "${XDG_CONFIG_HOME:-$HOME/.config}/shoji-shell"
+# Notifications.qml needs the notification-policy patch; see docs/notifications.md.
+quickshell_bin="${SHOJI_QUICKSHELL:-${XDG_DATA_HOME:-$HOME/.local/share}/shoji-shell/quickshell/bin/quickshell}"
+if [[ ! -x "$quickshell_bin" ]]; then
+    echo 'Missing patched Quickshell. Build/install dotfiles/scripts/build-quickshell.sh first.' >&2
+    exit 1
+fi
+export PATH="$(dirname -- "$quickshell_bin"):$PATH"
+exec "$quickshell_bin" --no-duplicate --path "${XDG_CONFIG_HOME:-$HOME/.config}/shoji-shell"

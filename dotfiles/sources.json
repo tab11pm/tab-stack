@@ -6,7 +6,14 @@
     "revision": "dcb73aa3165e1fb66fca8226f076f3183e38806c",
     "upstream": "https://github.com/bea4dev/ShojiWM",
     "upstream_revision": "dcea1dd",
-    "pull_requests": [105, 106, 107, 108, 109, 122]
+    "pull_requests": [
+      105,
+      106,
+      107,
+      108,
+      109,
+      122
+    ]
   },
   "walker": {
     "repository": "https://github.com/abenz1267/walker",
@@ -17,7 +24,10 @@
   "shell_ancestry": {
     "repository": "https://github.com/bea4dev/shoji-bar-3",
     "revision": "1f9ca9309e6dbdec0a785bd6a86926a6406b4171",
-    "adapted_files": ["Dock.qml", "Media.qml"]
+    "adapted_files": [
+      "Dock.qml",
+      "Media.qml"
+    ]
   },
   "reference_runtime": {
     "distribution": "Manjaro / Arch Linux family",
@@ -26,5 +36,12 @@
     "elephant": "2.22.1",
     "xwayland_satellite": "0.8.2",
     "rust_for_shojiwm": "1.94.0"
+  },
+  "quickshell": {
+    "repository": "https://github.com/quickshell-mirror/quickshell",
+    "revision": "2b4501a282689792b62e94f3fb30d8f512324fe6",
+    "version": "0.3.2-7",
+    "patch": "patches/quickshell/notification-policy.patch",
+    "patch_origin": "howdeploy/kisa-stack (written for 0.3.1, applies cleanly to this revision)"
   }
 }

@@ -75,6 +75,9 @@ def main():
                     parser.error("Missing QML shader binaries; run scripts/build-shaders.sh first")
             if not src.joinpath("SwitcherInput/libswitcherinputplugin.so").is_file():
                 parser.error("Missing switcher input plugin; run scripts/build-switcher-input.sh first")
+            shell_binary = Path(os.environ.get("SHOJI_QUICKSHELL") or data / "shoji-shell/quickshell/bin/quickshell")
+            if not shell_binary.is_file() or not os.access(shell_binary, os.X_OK):
+                parser.error("Missing patched Quickshell; build/install scripts/build-quickshell.sh first (or set SHOJI_QUICKSHELL)")
         if src.name == "shojiwm" and not Path("/usr/lib/shojiwm/packages/shoji_wm").is_dir():
             parser.error("Install the pinned ShojiWM fork and runtime first")
     os.umask(0o077)
