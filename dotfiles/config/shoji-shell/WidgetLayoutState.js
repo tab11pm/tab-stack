@@ -9,6 +9,7 @@ var catalog = [
     { id: "deepseek", label: "DeepSeek API", width: 286, height: 190 },
     { id: "music", label: "Музыка", width: 286, height: 280 },
     { id: "weather", label: "Погода", width: 286, height: 160 },
+    { id: "kolonka", label: "Колонка Яндекс", width: 340, height: 430 },
     { id: "activity", label: "Время за ПК", width: 420, height: 630 },
     { id: "home", label: "Home Zone", width: 852, height: 690 },
     { id: "gaming-home", label: "Home Zone · Gaming", width: 1468, height: 420 }

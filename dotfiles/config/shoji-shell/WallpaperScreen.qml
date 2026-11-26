@@ -55,6 +55,7 @@ Scope {
             item: weatherLoader.item ? weatherLoader.item.attributionItem : null
             Region { item: githubLoader.active && githubLoader.enabled ? githubLoader : null }
             Region { item: deepseekLoader.active && deepseekLoader.enabled ? deepseekLoader : null }
+            Region { item: kolonkaLoader.active && kolonkaLoader.enabled ? kolonkaLoader : null }
             Region { item: activityLoader.active && activityLoader.enabled ? activityLoader : null }
             Region { item: profileLoader.active && profileLoader.enabled ? profileLoader : null }
             Region { item: sessionsLoader.active && sessionsLoader.enabled ? sessionsLoader : null }
@@ -112,6 +113,11 @@ Scope {
             id: deepseekLoader
             widgetId: "deepseek"; output: root.output; transition: wallpaperTransition
             sourceComponent: DeepSeekWidget {}
+        }
+        WidgetWaveLoader {
+            id: kolonkaLoader
+            widgetId: "kolonka"; output: root.output; transition: wallpaperTransition
+            sourceComponent: KolonkaWidget {}
         }
         WidgetWaveLoader {
             id: githubLoader
