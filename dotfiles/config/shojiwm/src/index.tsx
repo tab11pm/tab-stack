@@ -413,7 +413,8 @@ COMPOSITOR.process.service("dock", {
 });
 
 const SHORTCUT_LABELS: Record<string, [string, string]> = {
-  "screenshot-region": ["Снимок области", "ЗАПУСК И СИСТЕМА"],
+  "screenshot-region": ["Выбор скриншота", "ЗАПУСК И СИСТЕМА"],
+  "screenshot-region-mouse": ["Снимок области", "ЗАПУСК И СИСТЕМА"],
   "screenshot-all": ["Снимок всего экрана", "ЗАПУСК И СИСТЕМА"],
   terminal: ["Терминал", "ЗАПУСК И СИСТЕМА"],
   browser: ["Chromium", "ЗАПУСК И СИСТЕМА"],
@@ -462,7 +463,26 @@ function defineShortcut(id: string, shortcut: string, handler: () => void): void
   shortcutDefinitions.push({ id, shortcut, handler, title, category });
 }
 
-defineShortcut("screenshot-region", "Super+Shift+S", () => {
+function toggleRegionScreenshot() {
+  const focused = HYBRID_WINDOW_MANAGER.listWindows().find(window => window.isFocused());
+  let geometry = "";
+  if (focused) {
+    const rect = focused.state[WINDOW_STATE_RECT]();
+    const x = read(rect.x);
+    const y = read(rect.y) + focused.state[WINDOW_STATE_WORKSPACE_OFFSET_Y]();
+    const left = Math.floor(x), top = Math.floor(y);
+    const width = Math.ceil(x + read(rect.width)) - left;
+    const height = Math.ceil(y + read(rect.height)) - top;
+    if (width > 0 && height > 0) geometry = `${left},${top} ${width}x${height}`;
+  }
+  COMPOSITOR.process.spawn({
+    command: ["quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
+      "call", "screenshot", "toggle", HYBRID_WINDOW_MANAGER.getCurrentMonitorName(), geometry],
+  });
+}
+defineShortcut("screenshot-region", "Super+Shift+S", toggleRegionScreenshot);
+
+defineShortcut("screenshot-region-mouse", "Super+MouseForward", () => {
   COMPOSITOR.process.spawn({
     command: [`${scripts}/screenshot-region`],
   });
@@ -766,6 +786,7 @@ COMPOSITOR.effect.layer = (layer) => {
     return { ...transition, inFront: monitorPortalEffect(layer) };
   }
   if (namespace === "shoji-shell" || namespace === "shoji-dock" || namespace === "shoji-shader-picker"
+      || namespace === "shoji-screenshot-picker"
       || namespace === "no_blur" || namespace === "shoji-water"
       || namespace === "linux-wallpaperengine") {
     return {};

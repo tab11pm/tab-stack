@@ -181,6 +181,7 @@ ShellRoot {
             output: modelData
         }
     }
+    ScreenshotPicker {}
     HermesHud {
         output: WidgetLayouts.outputFor("hermes") || root.primaryOutput
         layoutEnabled: Wallpapers.ready && WidgetLayouts.enabledOn("hermes", output)

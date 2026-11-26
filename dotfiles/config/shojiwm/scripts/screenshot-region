@@ -20,7 +20,7 @@ if ! command -v flameshot >/dev/null 2>&1; then
 fi
 
 export QT_QPA_PLATFORM=wayland
-monitor_index=$(python3 - <<'PY'
+monitor_index=$(python3 - "$@" <<'PY'
 import json
 import os
 import re
@@ -42,6 +42,8 @@ try:
                     break
             else:
                 raise ValueError('ShojiWM did not return the active monitor')
+    if len(sys.argv) > 1:
+        monitor = sys.argv[1]
     # Flameshot uses Qt screen indices, which need not match compositor order.
     screens = subprocess.run(
         ['qtdiag6', '--no-gl', '--no-vulkan', '--no-rhi'],

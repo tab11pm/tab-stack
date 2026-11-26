@@ -61,3 +61,6 @@ upower
 power-profiles-daemon
 slurp
 xdg-user-dirs
+tesseract
+tesseract-data-eng
+tesseract-data-rus
