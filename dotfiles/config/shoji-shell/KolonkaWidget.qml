@@ -36,6 +36,12 @@ Item {
         actor.running = true;
     }
     function togglePlay() { act(playing ? "pause" : paused ? "resume" : "play"); }
+    readonly property string repeatMode: !speaker.repeat ? "off" : speaker.single ? "one" : "all"
+    function cycleRepeat() {
+        const next = { off: "all", all: "one", one: "off" }[repeatMode];
+        speaker = Object.assign({}, speaker, { repeat: next !== "off", single: next === "one" });
+        act("repeat", next);
+    }
     function setMode(mode, on) {
         speaker = Object.assign({}, speaker, { [mode]: on });
         act(mode, on ? "on" : "off");
@@ -260,7 +266,11 @@ Item {
             }
             RoundButton { glyph: "next"; hint: "Следующий трек"; implicitWidth: 40; enabled: root.online; onClicked: root.act("next") }
             RoundButton { glyph: "hud-stop"; hint: "Остановить"; implicitWidth: 36; enabled: root.online && (root.playing || root.paused); onClicked: root.act("stop") }
-            RoundButton { glyph: "repeat"; hint: "Повтор"; implicitWidth: 36; enabled: root.online; active: !!root.speaker.repeat; onClicked: root.setMode("repeat", !root.speaker.repeat) }
+            RoundButton {
+                glyph: root.repeatMode === "one" ? "repeat-1" : "repeat"; implicitWidth: 36; enabled: root.online
+                hint: root.repeatMode === "off" ? "Повтор выключен" : root.repeatMode === "all" ? "Повтор плейлиста" : "Повтор трека"
+                active: root.repeatMode !== "off"; onClicked: root.cycleRepeat()
+            }
         }
 
         // Volume.

@@ -20,7 +20,7 @@ MAC = "3c:0b:4f:6a:6f:58"
 SSH_PORT = 2222
 MUSICCTL = "sh /data/opt/bin/musicctl"
 MUSIC_DIR = Path.home() / "Music"
-AUDIO = (".mp3", ".m4a", ".wav", ".flac", ".ogg", ".opus")
+AUDIO = (".mp3", ".flac", ".ogg", ".m4a", ".wav", ".opus", ".aac")  # как EXTS в music_server.py
 VOICE_UNIT = "desktop-voice"
 MUSIC = Path(os.environ.get("KOLONKA_DIR") or Path.home() / "Work/kolonka-lite") / "alice-music"
 SSH = ["ssh", "-i", str(Path.home() / ".ssh/id_ed25519"), "-p", str(SSH_PORT), "-T",
@@ -71,7 +71,7 @@ def seconds(text):
 
 def parse_player(text):
     """shortcut: формат mpc (`musicctl status` печатает его), не проверен на живой колонке."""
-    info = {"live": "/live.mp3" in text.split("\n", 1)[0], "repeat": False, "random": False, "playing": False, "paused": False, "title": "", "artist": "", "elapsed": 0, "total": 0, "volume": None}
+    info = {"single": False, "live": "/live.mp3" in text.split("\n", 1)[0], "repeat": False, "random": False, "playing": False, "paused": False, "title": "", "artist": "", "elapsed": 0, "total": 0, "volume": None}
     lines = text.splitlines()
     m = re.search(r"\[(playing|paused)\]\s+#\d+/\d+\s+(\S+)/(\S+)", text)
     if m:
@@ -83,7 +83,9 @@ def parse_player(text):
         if info["live"]:
             info.update(title="Звук компьютера", artist="Прямой эфир с ПК", total=0)
     modes = dict(re.findall(r"\b(repeat|random):\s*(on|off)", text))
-    info.update(repeat=modes.get("repeat") == "on", random=modes.get("random") == "on")
+    modes.update(re.findall(r"\b(single):\s*(on|off)", text))
+    info.update(repeat=modes.get("repeat") == "on", random=modes.get("random") == "on",
+                single=modes.get("single") == "on")
     # громкость берём из amixer (последний [NN%]): `volume:` у mpc бывает n/a
     amixer = re.findall(r"\[(\d+)%\]", text.split("volume:")[-1])
     info["volume"] = int(amixer[-1]) if amixer else None
@@ -105,6 +107,11 @@ def status(ip):
     return out
 
 
+def track_names():
+    # порядок как у playlist() в music_server.py: sorted по имени
+    return sorted(p.name for p in MUSIC_DIR.iterdir() if p.suffix.lower() in AUDIO) if MUSIC_DIR.is_dir() else []
+
+
 def ctl(ip, action, arg):
     if action == "play":
         cmd = ["bash", str(MUSIC / "play.sh")]
@@ -118,11 +125,18 @@ def ctl(ip, action, arg):
         cmd = ["bash", str(MUSIC / "stop.sh")]
     elif action in ("pause", "resume", "next", "prev"):
         cmd = [*SSH, f"root@{ip}", f"{MUSICCTL} {action}"]
-    elif action == "track" and arg and "/" not in arg:
-        cmd = ["bash", str(MUSIC / "play.sh"), arg]
-    elif action in ("repeat", "random") and arg in ("on", "off"):
+    elif action == "track" and arg in track_names():
+        # весь плейлист с нужного места, иначе у одиночного трека нет «следующего»
+        subprocess.run(["bash", str(MUSIC / "play.sh")], capture_output=True, text=True, timeout=30, check=True)
+        n = track_names().index(arg) + 1
+        cmd = [*SSH, f"root@{ip}", f"PATH=/opt/bin:$PATH mpc play {n}"]
+    elif action == "random" and arg in ("on", "off"):
         # shortcut: mpc лежит в Entware (/opt/bin), как и сам mpd; на живой колонке не проверено
-        cmd = [*SSH, f"root@{ip}", f"PATH=/opt/bin:$PATH mpc {action} {arg}"]
+        cmd = [*SSH, f"root@{ip}", f"PATH=/opt/bin:$PATH mpc random {arg}"]
+    elif action == "repeat" and arg in ("off", "all", "one"):
+        # all — повтор плейлиста; one — повтор трека (mpc: repeat + single)
+        rep, single = {"off": ("off", "off"), "all": ("on", "off"), "one": ("on", "on")}[arg]
+        cmd = [*SSH, f"root@{ip}", f"PATH=/opt/bin:$PATH mpc single {single}; PATH=/opt/bin:$PATH mpc repeat {rep}"]
     elif action == "volume" and arg.isdigit() and 0 <= int(arg) <= 100:
         cmd = [*SSH, f"root@{ip}", f"amixer sset Master {int(arg)}%"]
     else:
@@ -137,7 +151,6 @@ if __name__ == "__main__":
     if args[0] == "status":
         print(json.dumps(status(args[1])))
     elif args[0] == "tracks":
-        print(json.dumps(sorted(p.name for p in MUSIC_DIR.iterdir() if p.suffix.lower() in AUDIO)
-                         if MUSIC_DIR.is_dir() else []))
+        print(json.dumps(track_names()))
     elif args[0] == "ctl":
         ctl(args[1], args[2], args[3])
