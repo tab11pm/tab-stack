@@ -22,12 +22,33 @@ from session_state import (ENVIRONMENT_KEYS, OwnerIdentity, SessionRecord, confl
 SESSION_UNITS = ('elephant.service', 'xdg-desktop-portal.service', 'xdg-desktop-portal-gtk.service',
                  'xdg-desktop-portal-wlr.service', 'xdg-desktop-portal-shojiwm.service')
 SESSION_TARGET = 'tab-stack-session.target'
+SLEEP_UNIT = 'tab-stack-sleep-lock.service'
+# Filled from the separately reviewed optional unit sources, never arbitrary drop-ins.
+SLEEP_FILE_DIGESTS = {'tab-stack-sleep-lock.service': '86434b083d931fdcfc6e6caf0f1be0681fd9b6776c52325e773074bc4656ebd4', 'tab-stack-session.target.d/sleep-lock.conf': 'e86c4f6d9126a2ec79d9393f4620a48cab253f2ba6d10695271bccd2a6686184'}
 READINESS_SECONDS = 90
 CLEANUP_SECONDS = 30
 COMMAND_SECONDS = 10
 
 # Digests of reviewed user units shipped alongside this runtime.
 OWNED_FILE_DIGESTS = {'tab-stack-session.target': '8812ec0af17544530964645be75b2f3f2ba087970b2b435aabbf84c6d8f90638', 'elephant.service': '705bce2c29fb522e7e9cad4a46f7432351d30374097cadd17457f0033aa5e674', 'xdg-desktop-portal.service.d/tab-stack-session.conf': 'ca0a19621666949da53abef999f00feac566cc821db3ab8f326c8f83679fb7ab', 'xdg-desktop-portal-gtk.service.d/tab-stack-session.conf': 'ca0a19621666949da53abef999f00feac566cc821db3ab8f326c8f83679fb7ab', 'xdg-desktop-portal-wlr.service.d/tab-stack-session.conf': 'ca0a19621666949da53abef999f00feac566cc821db3ab8f326c8f83679fb7ab', 'xdg-desktop-portal-shojiwm.service.d/tab-stack-session.conf': 'ca0a19621666949da53abef999f00feac566cc821db3ab8f326c8f83679fb7ab'}
+
+
+def checked_unit_file(path, name, digests):
+    for parent in path.parents:
+        if parent.is_symlink():
+            raise ValueError('Symlink in session unit path')
+    info = path.lstat()
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+            or stat.S_IMODE(info.st_mode) != 0o644
+            or hashlib.sha256(path.read_bytes()).hexdigest() != digests[name]):
+        raise ValueError(f'Unreviewed session file: {name}')
+
+
+def managed_services(backend):
+    services = backend.session_units()
+    if services not in (SESSION_UNITS, (*SESSION_UNITS, SLEEP_UNIT)):
+        raise ValueError('Unexpected managed service set')
+    return services
 
 
 class SessionBackend(Protocol):
@@ -42,6 +63,7 @@ class SessionBackend(Protocol):
     def descendant(self, pid: int, ancestor: int) -> bool: ...
     def verify_peer(self, env: Mapping[str, str], compositor: OwnerIdentity) -> None: ...
     def owns_unreaped_child(self, child: subprocess.Popen) -> bool: ...
+    def session_units(self) -> tuple[str, ...]: ...
 
 
 class SystemBackend:
@@ -87,8 +109,21 @@ class SystemBackend:
             output = self.command(['systemctl', '--user', 'show', name, '-p', 'ActiveState', '--value'], None, COMMAND_SECONDS).stdout.strip()
             if output not in ('active', 'inactive', 'failed', 'activating', 'deactivating', 'reloading'):
                 raise ValueError(f'Unknown unit state: {name}')
+            if name == SLEEP_UNIT and output == 'active':
+                status = self.command(['systemctl', '--user', 'show', name, '-p', 'StatusText', '--value'], None, COMMAND_SECONDS).stdout.strip()
+                if not status.startswith(('ready:', 'secure:', 'locking:')):
+                    output = 'failed'  # Active PID is not proof of a usable sleep monitor.
             result[name] = output
         return result
+
+    def session_units(self):
+        root = Path(self.environment.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'systemd/user'
+        name = SESSION_TARGET + '.d/sleep-lock.conf'
+        path = root / name
+        if not path.exists() and not path.is_symlink():
+            return SESSION_UNITS
+        checked_unit_file(path, name, SLEEP_FILE_DIGESTS)
+        return (*SESSION_UNITS, SLEEP_UNIT)
 
     def selected_manager_environment(self):
         # systemctl exposes no selective show-environment operation. Filter immediately;
@@ -119,31 +154,27 @@ class SystemBackend:
         return selected
 
     def validate_units(self):
-        def checked_file(path, name):
-            info = path.lstat()
-            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
-                    or stat.S_IMODE(info.st_mode) != 0o644
-                    or hashlib.sha256(path.read_bytes()).hexdigest() != OWNED_FILE_DIGESTS[name]):
-                raise ValueError(f'Unreviewed session file: {name}')
+        services = managed_services(self)
         expected = Path(self.environment.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'systemd/user'
-        for name in (*SESSION_UNITS, SESSION_TARGET):
+        for name in (*services, SESSION_TARGET):
             data = self.command(['systemctl', '--user', 'show', name, '-p', 'LoadState', '-p', 'FragmentPath', '-p', 'DropInPaths', '-p', 'PartOf', '-p', 'NeedDaemonReload'], None, COMMAND_SECONDS).stdout
             values = dict(line.split('=', 1) for line in data.splitlines() if '=' in line)
             if values.get('NeedDaemonReload') != 'no':
                 raise ValueError(f'Session unit requires daemon-reload: {name}')
             if values.get('LoadState') != 'loaded':
                 raise ValueError(f'Missing session unit: {name}')
-            if name in ('elephant.service', SESSION_TARGET):
+            if name in ('elephant.service', SESSION_TARGET, SLEEP_UNIT):
                 path = expected / name
-                if values.get('FragmentPath') != str(path) or values.get('DropInPaths', ''):
+                dropins = str(expected / (SESSION_TARGET + '.d/sleep-lock.conf')) if name == SESSION_TARGET and SLEEP_UNIT in services else ''
+                if values.get('FragmentPath') != str(path) or values.get('DropInPaths', '') != dropins:
                     raise ValueError(f'Unexpected session unit provenance: {name}')
-                checked_file(path, name)
+                checked_unit_file(path, name, SLEEP_FILE_DIGESTS if name == SLEEP_UNIT else OWNED_FILE_DIGESTS)
             else:
                 fragment = Path(values.get('FragmentPath', ''))
                 dropin = expected / (name + '.d') / 'tab-stack-session.conf'
                 if fragment != Path('/usr/lib/systemd/user') / name or values.get('DropInPaths', '').split() != [str(dropin)]:
                     raise ValueError(f'Unexpected portal provenance: {name}')
-                checked_file(dropin, name + '.d/tab-stack-session.conf')
+                checked_unit_file(dropin, name + '.d/tab-stack-session.conf', OWNED_FILE_DIGESTS)
             if name != SESSION_TARGET and SESSION_TARGET not in values.get('PartOf', '').split():
                 raise ValueError(f'Missing session stop ownership: {name}')
 
@@ -290,6 +321,7 @@ def readiness_record(backend, env):
 
 
 def ready_session(backend: SessionBackend, env: Mapping[str, str]) -> None:
+    services = managed_services(backend)
     deadline = time.monotonic() + READINESS_SECONDS
     with budget(backend, deadline), private_lock(backend.runtime, 'operation.lock', deadline):
         # Child identity is written just after spawn; the child can reach us first.
@@ -301,11 +333,13 @@ def ready_session(backend: SessionBackend, env: Mapping[str, str]) -> None:
                 raise ValueError('Compositor identity not ready')
             time.sleep(0.02)
         record, selected = readiness_record(backend, env)
+        if record.services != services:
+            raise ValueError('Session service lease changed')
         if record.phase == 'ready':
-            if any(value != 'active' for value in backend.unit_states(SESSION_UNITS).values()):
+            if any(value != 'active' for value in backend.unit_states(services).values()):
                 raise ValueError('Ready session service failed')
             return
-        if record.phase != 'starting' or record.services != SESSION_UNITS:
+        if record.phase != 'starting' or record.services != services:
             raise ValueError('Session is not awaiting readiness')
         backend.validate_units()
         # Record selected values BEFORE any import: partial import remains recoverable.
@@ -314,12 +348,12 @@ def ready_session(backend: SessionBackend, env: Mapping[str, str]) -> None:
         run(backend, ['dbus-update-activation-environment', '--systemd', *[f'{key}={value}' for key, value in selected.items()]], deadline)
         if backend.selected_manager_environment() != selected:
             raise ValueError('Systemd did not receive the selected desktop environment')
-        activated = tuple(unit for unit, status in backend.unit_states(SESSION_UNITS).items() if status != 'inactive')
+        activated = tuple(unit for unit, status in backend.unit_states(services).items() if status != 'inactive')
         run(backend, ['systemctl', '--user', 'start', SESSION_TARGET], deadline)
         if activated:
             run(backend, ['systemctl', '--user', 'restart', *activated], deadline)
-        states = backend.unit_states((*SESSION_UNITS, SESSION_TARGET))
-        if any(states.get(name) != 'active' for name in (*SESSION_UNITS, SESSION_TARGET)):
+        states = backend.unit_states((*services, SESSION_TARGET))
+        if any(states.get(name) != 'active' for name in (*services, SESSION_TARGET)):
             raise ValueError('Session services did not become active')
         # Revalidate the lease after slow service jobs, before declaring readiness.
         live, _ = readiness_record(backend, env)
@@ -330,6 +364,7 @@ def ready_session(backend: SessionBackend, env: Mapping[str, str]) -> None:
 
 
 def cleanup_session(backend: SessionBackend, owner: OwnerIdentity) -> None:
+    services = managed_services(backend)
     deadline = min(time.monotonic() + CLEANUP_SECONDS, getattr(backend, 'deadline', None) or float('inf'))
     try:
         with budget(backend, deadline), private_lock(backend.runtime, 'operation.lock', deadline):
@@ -339,7 +374,7 @@ def cleanup_session(backend: SessionBackend, owner: OwnerIdentity) -> None:
             validate_login(backend, owner.session_id, owner.pid)
             save_session(backend.runtime, replace(record, phase='stopping'))
             if record.services:
-                if record.services != SESSION_UNITS:
+                if record.services != services:
                     raise ValueError('Unexpected service lease')
                 backend.validate_units()
                 # Explicit services cover pre-target D-Bus activation too.
@@ -423,6 +458,7 @@ def stop_child(backend, child, identity, deadline):
 
 
 def start_session(backend: SessionBackend, env: Mapping[str, str]) -> int:
+    services = managed_services(backend)
     prepare_runtime(backend.runtime)
     with private_lock(backend.runtime, 'lock'):
         if any((backend.runtime / name).exists() or (backend.runtime / name).is_symlink() for name in ('owner.json', 'ready.json')):
@@ -432,12 +468,12 @@ def start_session(backend: SessionBackend, env: Mapping[str, str]) -> int:
             session_id = env.get('XDG_SESSION_ID', '')
             validate_login(backend, session_id, os.getpid())
             backend.validate_units()
-            if any(value != 'inactive' for value in backend.unit_states((*SESSION_UNITS, SESSION_TARGET)).values()):
+            if any(value != 'inactive' for value in backend.unit_states((*services, SESSION_TARGET)).values()):
                 raise ValueError('Legacy or unexpected desktop services active; complete first-migration prerequisite')
         owner = replace(backend.identity(os.getpid()), token=secrets.token_hex(32), session_id=session_id)
         if owner.uid != os.getuid():
             raise ValueError('Wrapper UID mismatch')
-        record = SessionRecord(owner, None, 'starting', SESSION_UNITS)
+        record = SessionRecord(owner, None, 'starting', services)
         save_session(backend.runtime, record)
         child = None
         child_identity = None
@@ -517,6 +553,7 @@ def start_session(backend: SessionBackend, env: Mapping[str, str]) -> int:
 
 
 def check_session(backend, env):
+    services = managed_services(backend)
     with budget(backend, time.monotonic() + COMMAND_SECONDS):
         # Status is read-only. Launcher scopes and TTY callers need not inherit
         # the compositor's registration token or process ancestry.
@@ -538,7 +575,7 @@ def check_session(backend, env):
         manager = backend.selected_manager_environment()
         if any(manager.get(key) != value for key, value in selected.items()):
             raise ValueError('Independent manager environment changed')
-        if record.phase != 'ready' or any(state != 'active' for state in backend.unit_states((*SESSION_UNITS, SESSION_TARGET)).values()):
+        if record.services != services or record.phase != 'ready' or any(state != 'active' for state in backend.unit_states((*services, SESSION_TARGET)).values()):
             raise ValueError('Independent session is not ready')
 
 

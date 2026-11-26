@@ -32,6 +32,9 @@ class Child:
 
 
 class Backend:
+    def session_units(self):
+        return UNITS
+
     def __init__(self, runtime):
         self.runtime = Path(runtime) / 'tab-stack-session'
         self.environment = {'XDG_RUNTIME_DIR': str(runtime), 'XDG_SESSION_ID': '4',

@@ -3,6 +3,7 @@
 import argparse
 import fcntl
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -95,11 +96,20 @@ def lock_backgrounds():
     return result
 
 
-def check(environment):
+def remaining(deadline, maximum):
+    if deadline is None:
+        return maximum
+    value = min(maximum, deadline - time.monotonic())
+    if value <= 0:
+        raise RuntimeError('Locker deadline expired')
+    return value
+
+
+def check(environment, deadline=None):
     checked_env = dict(environment, WAYLAND_DEBUG="1")
     result = subprocess.run(
         ["quickshell", "--path", str(SOURCE.parent / "lock-check.qml"), "--no-color"],
-        env=checked_env, capture_output=True, text=True, timeout=10,
+        env=checked_env, capture_output=True, text=True, timeout=remaining(deadline, 10),
     )
     output = result.stdout + result.stderr
     if result.returncode or "SHOJI_LOCK_CHECK_OK" not in output:
@@ -110,28 +120,39 @@ def check(environment):
         raise RuntimeError("Текущий композитор не объявляет протокол блокировки Wayland.")
 
 
-def status():
+def status(deadline=None):
     try:
         result = subprocess.run(
             ["quickshell", "ipc", "--path", str(SOURCE.parent / "lock.qml"), "call", "session", "status"],
-            capture_output=True, text=True, timeout=1,
+            capture_output=True, text=True, timeout=remaining(deadline, 1),
         )
         if result.returncode == 0:
-            return json.loads(result.stdout)
+            value = json.loads(result.stdout)
+            return value if isinstance(value, dict) else None
     except (ValueError, subprocess.TimeoutExpired):
         pass
     return None
 
 
-def start(environment, runtime):
+def start(environment, runtime, deadline=None):
     # Serialise launchers, not the locker. The detached process survives a panel
     # reload; --no-duplicate also protects launches outside this helper.
     with (runtime / "launch.lock").open("a") as launch_lock:
-        fcntl.flock(launch_lock, fcntl.LOCK_EX)
-        existing = status()
+        if deadline is None:
+            fcntl.flock(launch_lock, fcntl.LOCK_EX)
+        else:
+            while True:
+                remaining(deadline, 1)
+                try:
+                    fcntl.flock(launch_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    time.sleep(remaining(deadline, .02))
+        existing = status(deadline)
         if existing and existing.get("secure"):
             return
-        check(environment)
+        check(environment, deadline)
+        remaining(deadline, 1)
         log_path = runtime / "locker.log"
         descriptor = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
         with os.fdopen(descriptor, "a") as log:
@@ -140,14 +161,14 @@ def start(environment, runtime):
                 env=environment, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                 start_new_session=True, close_fds=True,
             )
-        deadline = time.monotonic() + 7
-        while time.monotonic() < deadline:
-            current = status()
+        secure_deadline = min(deadline or float('inf'), time.monotonic() + 7)
+        while time.monotonic() < secure_deadline:
+            current = status(secure_deadline)
             if current and current.get("secure"):
                 return
             if process.poll() is not None:
                 raise RuntimeError("Процесс блокировки завершился. См. " + str(log_path))
-            time.sleep(0.1)
+            time.sleep(min(.1, max(0, secure_deadline - time.monotonic())))
         # Never kill a possibly secure lock: a conformant compositor keeps a
         # failed client's session locked, which needs recovery from another TTY.
         raise RuntimeError("Нет подтверждения блокировки. См. " + str(log_path))
@@ -158,7 +179,12 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true", help="Check QML, PAM policy and compositor; do not lock")
     mode.add_argument("--preview", action="store_true", help="Open a non-locking preview window")
+    parser.add_argument('--deadline', type=float, help='Absolute monotonic deadline for supervised sleep locking')
     args = parser.parse_args()
+    if args.deadline is not None:
+        if not math.isfinite(args.deadline) or args.preview or args.check:
+            parser.error('--deadline requires a finite value and ordinary lock mode')
+        remaining(args.deadline, 1)
     environment = dict(os.environ, SHOJI_LOCK_BACKGROUND=background_url(),
                        SHOJI_LOCK_BACKGROUNDS=json.dumps(lock_backgrounds()))
     if args.preview:
@@ -171,7 +197,7 @@ def main():
         print(f"OK: QML loads; ext-session-lock-v1 available; PAM policy {directory}/{service}.")
         print("Password authentication and actual locking were not attempted.")
         return 0
-    start(environment, runtime)
+    start(environment, runtime, args.deadline)
     return 0
 
 

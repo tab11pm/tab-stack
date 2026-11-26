@@ -1,0 +1,3 @@
+# Optional logind sleep monitor; not needed for manual locker or panel-only idle sleep.
+python-dbus
+python-gobject
