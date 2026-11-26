@@ -75,6 +75,8 @@ NightLightSettings 1.0 NightLightSettings.qml
 singleton IdleSleep 1.0 IdleSleep.qml
 IdleSleepButton 1.0 IdleSleepButton.qml
 IdleSleepSettings 1.0 IdleSleepSettings.qml
+singleton CursorFx 1.0 CursorFx.qml
+CursorFxSettings 1.0 CursorFxSettings.qml
 singleton Activity 1.0 Activity.qml
 ActivityWidget 1.0 ActivityWidget.qml
 ActivityChart 1.0 ActivityChart.qml

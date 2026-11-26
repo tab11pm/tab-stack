@@ -105,6 +105,11 @@ for the empty preset. It requires two user-configured locations.
 Walker has a matching CSS palette and the same fixed grain tile. The public Ghostty
 configuration uses `monospace`; select an installed font there if desired. The
 cursor uses `XCURSOR_THEME` or Adwaita; personal cursor assets are not bundled.
+While a cursor effect (liquid or ring) is on, ShojiWM switches to the transparent
+`shoji-hidden-cursor` theme and the shader draws the pointer under panels; over
+Top/Overlay layers (panel, dock, menus) the normal pointer returns. The effect stays
+out of the single top overlay slot used by night colour and screen shaders. Apps that
+draw their own cursor surface still show it over their windows.
 
 The `Shoji` icon theme inherits Papirus Dark. Add custom flat SVG app icons under
 `$XDG_DATA_HOME/icons/Shoji/scalable/apps/`, named for the application's `Icon=` value.

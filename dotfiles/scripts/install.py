@@ -53,6 +53,7 @@ def main():
             plan.append((ROOT / "config/xdg-desktop-portal/shojiwm-portals.conf", config / "xdg-desktop-portal/shojiwm-portals.conf"))
         elif name == "icons":
             plan.append((ROOT / "data/icons/Shoji", data / "icons/Shoji"))
+            plan.append((ROOT / "data/icons/shoji-hidden-cursor", data / "icons/shoji-hidden-cursor"))
         elif name == "bin":
             plan.append((ROOT / "bin/codex-resume-ghostty", home / ".local/bin/codex-resume-ghostty"))
         else:
@@ -93,7 +94,7 @@ def main():
         dst.parent.mkdir(parents=True, exist_ok=True)
         try:
             if src.is_dir():
-                shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "shortcuts.json", "deepseek-api-key", "night-light.json", "idle-sleep.json", "widget-layouts.json", "node_modules"))
+                shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "shortcuts.json", "deepseek-api-key", "night-light.json", "idle-sleep.json", "cursor-fx.json", "widget-layouts.json", "node_modules"))
             else:
                 shutil.copy2(src, dst)
             if dst == config / "shoji-shell":
@@ -109,7 +110,7 @@ def main():
                 if saved_shortcuts.is_file() and not saved_shortcuts.is_symlink():
                     shutil.copy2(saved_shortcuts, dst / "shortcuts.json")
             if dst == config / "shoji-shell" and previous.is_dir():
-                for name in ("integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "deepseek-api-key", "night-light.json", "idle-sleep.json", "widget-layouts.json"):
+                for name in ("integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "deepseek-api-key", "night-light.json", "idle-sleep.json", "cursor-fx.json", "widget-layouts.json"):
                     old = previous / name
                     if old.is_file() and not old.is_symlink():
                         shutil.copy2(old, dst / name)

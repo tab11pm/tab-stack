@@ -15,6 +15,7 @@ ShellRoot {
     readonly property bool nightLightReady: NightLight.loaded
     // Monitor inactivity even when the control centre is closed.
     readonly property bool idleSleepReady: IdleSleep.loaded
+    readonly property bool cursorFxReady: CursorFx.loaded
     readonly property bool activityReady: Activity.loaded
     IpcHandler {
         target: "activity"

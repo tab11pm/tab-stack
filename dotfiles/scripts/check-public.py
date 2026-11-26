@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Scan the publication tree; report locations/categories, never matched values."""
 import argparse
+import hashlib
 from pathlib import Path
 import re
 import subprocess
@@ -15,7 +16,7 @@ RULES = {
     "private host": re.compile(r"\b(?:192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b"),
     "personal absolute path": re.compile(r"/(?:home|Users)/[A-Za-z0-9_.-]+|/mnt/[A-Za-z0-9_.-]+"),
 }
-DISALLOWED = re.compile(r"(?:^|/)(?:deepseek-api-key|auth\.json|hosts\.yml|integrations\.env|wallpapers\.json|monitors\.json|shortcuts\.json|night-light\.json|idle-sleep\.json|widget-layouts\.json|backups|wallpaper-groups\.json|\.env(?:\.[^/]+)?|.*\.(?:sqlite3?|db|log|pem|key|qsb|pyc|so|o)|.*(?:\.bak|\.backup).*)(?:$|/)")
+DISALLOWED = re.compile(r"(?:^|/)(?:deepseek-api-key|auth\.json|hosts\.yml|integrations\.env|wallpapers\.json|monitors\.json|shortcuts\.json|night-light\.json|idle-sleep\.json|cursor-fx\.json|widget-layouts\.json|backups|wallpaper-groups\.json|\.env(?:\.[^/]+)?|.*\.(?:sqlite3?|db|log|pem|key|qsb|pyc|so|o)|.*(?:\.bak|\.backup).*)(?:$|/)")
 BINARY = {"dotfiles/config/shoji-shell/assets/panel-grain.png", "dotfiles/config/walker/themes/shoji/grain.png"}
 # Reviewed generated sprite sheets used by HomeMascots.js; no screenshots.
 BINARY.update(f"dotfiles/config/shoji-shell/assets/home-clock-v2/{digit}.png" for digit in range(10))
@@ -23,6 +24,9 @@ BINARY.update(f"dotfiles/config/shoji-shell/assets/home-clock-v3/{digit}.png" fo
 BINARY.update(f"dotfiles/config/shoji-shell/assets/home-clock-v4/{digit}.png" for digit in (3, 6, 7, 8))
 BINARY.update(f"dotfiles/config/shoji-shell/assets/home-clock-v5/{variant}{digit}.png"
               for variant in "bcd" for digit in range(10))
+# Reviewed: every file of the hidden cursor theme is the same 1x1 transparent Xcursor.
+HIDDEN_CURSOR = ("dotfiles/data/icons/shoji-hidden-cursor/cursors/",
+                 "11df2e5456affb6b1670756084995dd7ed1185634ad759f0c2b40bf00fa7ba53")
 
 
 def main():
@@ -47,6 +51,8 @@ def main():
                 failures.append((name, 0, "symlink"))
                 continue
             raw = file.read_bytes()
+        if name.startswith(HIDDEN_CURSOR[0]) and hashlib.sha256(raw).hexdigest() == HIDDEN_CURSOR[1]:
+            continue
         if name in BINARY:
             if not raw.startswith(b"\x89PNG\r\n\x1a\n"):
                 failures.append((name, 0, "unexpected binary format"))

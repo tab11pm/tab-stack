@@ -60,6 +60,7 @@ import { layoutMeltEffect, stopLayoutMelts } from "./effect/layout-melt";
 import { stopWorkspaceWaves } from "./effect/workspace-wave";
 import { wallpaperWaveEffect, setWallpaperWave, stopWallpaperWave } from "./effect/live-wallpaper-wave";
 import { snowEffect, startSnow, stopSnow } from "./effect/snow";
+import { cursorFxPointerMove, refreshCursorFx, registerCursorFxIpc } from "./effect/cursor-fx";
 import { registerScreenShaderIpc, screenShaderPickerMapped, screenShaderPickerClosed, stopRetroScreen, stopScreenEffects } from "./effect/retro-screen";
 import { aquariumMistEffect } from "./effect/aquarium";
 import { petKeepsDockVisible, registerMateEngineIpc } from "./mateengine";
@@ -153,6 +154,7 @@ COMPOSITOR.onEnable((event) => {
 //   dock.proximity           { monitor: string, inside: bool }    (broadcast)
 // ---------------------------------------------------------------------------
 const WORKSPACE_IPC = createIpcServer();
+registerCursorFxIpc(WORKSPACE_IPC);
 registerScreenShaderIpc(WORKSPACE_IPC, (name) => {
   const output = COMPOSITOR.output.current[name];
   if (!output?.resolution || output.scale <= 0) return null;
@@ -870,6 +872,7 @@ COMPOSITOR.event.onFocus((window, focused) => {
 // Hover focus and dock proximity must not block the compositor's input loop.
 COMPOSITOR.event.onPointerMoveAsync((event) => {
   HYBRID_WINDOW_MANAGER.onPointerMove(event);
+  cursorFxPointerMove(event);
 
   // Dock proximity: update only the monitor the pointer is currently on,
   // and emit "leave" for other monitors that were previously inside. The
@@ -894,6 +897,7 @@ COMPOSITOR.event.onGestureSwipe((event) => {
 
 COMPOSITOR.event.onOutputChange((event) => {
   stopRetroScreen();
+  refreshCursorFx();
   HYBRID_WINDOW_MANAGER.onOutputChange(event);
   scheduleWorkspaceBroadcast();
 });
