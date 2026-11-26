@@ -6,6 +6,11 @@ arrow keys move the focused screen by 20 logical pixels. Enter selects it.
 **Сделать главным** chooses the primary output for the panel, dock and widgets
 whose placement is `primary`.
 
+**Выключить** turns the selected screen off (the last active screen cannot be
+turned off); **Зеркало <имя>** shows another screen's picture on it; **Расширить**
+returns it to the desktop. Disabled screens stay listed as **Включить <имя>**.
+The mode applies immediately without a timed rollback and is saved with the profile.
+
 Refresh rates come from driver-reported modes for the current resolution. The
 panel also offers scale selection; resolution selection is not exposed.
 **Применить** applies layout/primary changes immediately. A refresh-rate or scale

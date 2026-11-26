@@ -127,6 +127,48 @@ ColumnLayout {
             onClicked: Monitors.makePrimary()
         }
     }
+    RowLayout {
+        Layout.fillWidth: true
+        UiText { text: "Экран"; color: Theme.muted; font.pixelSize: 11; Layout.fillWidth: true }
+        ActionButton {
+            text: "Выключить"
+            enabled: !!Monitors.current && !Monitors.previewing && !Monitors.busy && Monitors.draft.length > 1
+            onClicked: Monitors.setMode(Monitors.selected, "disabled")
+        }
+        ActionButton {
+            visible: !!Monitors.current && !!Monitors.modes[Monitors.selected]
+            text: "Расширить"
+            enabled: !Monitors.previewing && !Monitors.busy
+            onClicked: Monitors.setMode(Monitors.selected, "extend")
+        }
+    }
+    Flow {
+        Layout.fillWidth: true; spacing: 6
+        visible: Monitors.draft.length > 1
+        Repeater {
+            model: Monitors.draft.filter(o => o.name !== Monitors.selected && !Monitors.modes[o.name])
+            ActionButton {
+                required property var modelData
+                text: "Зеркало " + modelData.name
+                highlighted: !!Monitors.modes[Monitors.selected] && Monitors.modes[Monitors.selected].source === modelData.name
+                enabled: !Monitors.previewing && !Monitors.busy
+                onClicked: Monitors.setMode(Monitors.selected, "mirror", modelData.name)
+            }
+        }
+    }
+    Flow {
+        Layout.fillWidth: true; spacing: 6
+        visible: Monitors.disabled.length > 0
+        Repeater {
+            model: Monitors.disabled
+            ActionButton {
+                required property var modelData
+                text: "Включить " + modelData
+                enabled: !Monitors.previewing && !Monitors.busy
+                onClicked: Monitors.setMode(modelData, "extend")
+            }
+        }
+    }
     MonitorChoice {
         label: "Частота обновления"
         options: Monitors.current ? Monitors.current.modes.filter(m => m.width === Monitors.current.width && m.height === Monitors.current.height).map(m => ({ label: Math.round(m.refreshRate * 100) / 100 + " Гц", value: m.refreshRate })) : []

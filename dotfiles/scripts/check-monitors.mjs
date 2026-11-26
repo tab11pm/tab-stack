@@ -14,14 +14,18 @@ let configure, timeout, disable, enable, persisted;
 const compositor = {
     env: { get: () => '' },
     output: {
-        get list() { return outputs.map(o => o.name); },
-        get outputs() { return outputs; },
+        get list() { return outputs.filter(o => o.enabled).map(o => o.name); },
+        get current() { return Object.fromEntries(outputs.map(o => [o.name, o])); },
+        get outputs() { return outputs.filter(o => o.enabled); },
         get: name => outputs.find(o => o.name === name),
         configure: callback => { configure = callback; },
         reconfigure() {
             const draft = configure({ connected: outputs });
             for (const output of outputs) {
                 const next = draft[output.name];
+                if (next.mode === 'disabled') { output.enabled = false; continue; }
+                output.enabled = true;
+                if (next.mode === 'mirror') continue;
                 output.scale = next.scale;
                 if (next.position !== 'auto') output.position = { ...next.position };
                 if (next.resolution !== 'best') output.resolution = { ...next.resolution };
@@ -97,4 +101,17 @@ assert.equal(restored.settings.outputs.some(o => o.name === 'DP-1'), false);
 assert.equal(outputs[1].position.y, 240);
 assert.equal(restored.primary, 'eDP-1');
 assert.throws(() => call('preview', next));
+// Display modes: mirror, disable, last-screen guard, re-enable.
+const [first, second] = outputs.map(o => o.name);
+let state = call('mode', { name: first, mode: 'mirror', source: second });
+assert.equal(JSON.stringify(state.modes[first]), JSON.stringify({ mode: 'mirror', source: second }));
+assert.throws(() => call('mode', { name: second, mode: 'mirror', source: first }));
+state = call('mode', { name: second, mode: 'disabled' });
+assert.equal(state.modes[first], undefined);
+assert.equal(state.disabled.join(), second);
+assert.throws(() => call('mode', { name: first, mode: 'disabled' }));
+// Only the disabled screen is left connected (the other was unplugged): wake it.
+assert.equal(configure({ connected: [{ name: second, transform: 'normal' }] })[second].mode, 'extend');
+state = call('mode', { name: second, mode: 'extend' });
+assert.equal(state.disabled.length, 0);
 console.log('Monitor validation, layout, preview rollback, confirmation and reload: OK');

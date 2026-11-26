@@ -13,6 +13,8 @@ Singleton {
     property string primary: Settings.primaryOutput
     property string draftPrimary: ""
     property var outputs: []
+    property var modes: ({})
+    property var disabled: []
     property var draft: []
     property string selected: ""
     property double deadline: 0
@@ -64,6 +66,22 @@ Singleton {
         draft = draft.map(o => o.name === name ? Object.assign({}, o, patch) : o);
         dirty = true;
     }
+    property string powerTarget: ""
+    property var powerThen: null
+    // DDC/CI power: waking happens before the compositor re-extends the output.
+    function setMode(name, mode, source) {
+        error = ""; busy = true;
+        const request = () => send("monitors.mode", { name, mode, source });
+        if (mode === "extend" && disabled.includes(name)) runPower("on", name, request);
+        else if (mode === "disabled") { powerTarget = name; request(); }
+        else request();
+    }
+    function runPower(action, name, then) {
+        if (power.running) return;
+        powerThen = then || null;
+        power.command = ["python3", Qt.resolvedUrl("monitor-power.py").toString().replace("file://", ""), action, name];
+        power.running = true;
+    }
     function makePrimary() { draftPrimary = selected; dirty = true; }
     function apply() {
         error = ""; busy = true;
@@ -83,6 +101,8 @@ Singleton {
     function accept(result, resetDraft) {
         const changed = outputs.map(o => o.name).join() !== result.outputs.map(o => o.name).join();
         outputs = result.outputs;
+        modes = result.modes || ({});
+        disabled = result.disabled || [];
         primary = result.primary || Settings.primaryOutput;
         deadline = result.deadline || 0;
         now = Date.now();
@@ -102,6 +122,20 @@ Singleton {
     // Quickshell can retain a failed QLocalSocket after ConnectionRefusedError.
     // Recreate the Socket object so a later ShojiWM reload can be reached.
     Timer { interval: 2000; repeat: true; running: true; onTriggered: { if (!root.socket || !root.socket.connected) root.reconnect(); } }
+    Process {
+        id: power
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let failure = "";
+                try { const result = JSON.parse(text); if (!result.ok) failure = result.error; }
+                catch (e) { failure = "Не удалось выключить питание монитора"; }
+                // Waking is best effort: still re-extend so the desktop is never stuck.
+                const then = root.powerThen; root.powerThen = null;
+                if (failure) root.error = "Питание монитора: " + failure;
+                if (then) then();
+            }
+        }
+    }
     FileView {
         id: storage
         path: Settings.configHome + "/shoji-shell/monitors.json"
@@ -144,16 +178,21 @@ Singleton {
                         delete root.requests[message.id];
                         root.busy = false;
                         if (message.error) {
+                            root.powerTarget = "";
                             root.error = typeof message.error === "string" ? message.error : message.error.message || "Не удалось изменить настройки. Перезагрузи конфиг: Super+Shift+R.";
                             if (method === "monitors.restore") root.send("monitors.get");
                             return;
                         }
-                        const saved = method === "monitors.confirm" || method === "monitors.apply-layout";
+                        const saved = method === "monitors.confirm" || method === "monitors.apply-layout" || method === "monitors.mode";
                         if (method === "monitors.apply-layout") {
                             // reconfigure queues the native change; its immediate snapshot
                             // can still contain the old positions. Keep the accepted layout.
                             message.result.outputs = message.result.outputs.map(o => Object.assign({}, o,
                                 message.result.settings.outputs.find(item => item.name === o.name) || {}));
+                        }
+                        if (method === "monitors.mode" && root.powerTarget) {
+                            const target = root.powerTarget; root.powerTarget = "";
+                            if (message.result.disabled.includes(target)) root.runPower("off", target);
                         }
                         root.accept(message.result, method === "monitors.cancel" || saved || method === "monitors.restore");
                         if (saved) {

@@ -3,14 +3,28 @@ import type { IpcServer } from "shoji_wm/ipc";
 
 type Entry = { name: string; x: number; y: number; scale: number;
   width: number; height: number; refreshRate: number };
-type Settings = { primary: string; outputs: Entry[] };
+type Mode = { mode: "disabled" } | { mode: "mirror"; source: string };
+type Settings = { primary: string; outputs: Entry[]; modes: Record<string, Mode> };
+
+function cleanModes(value: unknown): Record<string, Mode> {
+  const result: Record<string, Mode> = {};
+  if (!value || typeof value !== "object") return result;
+  for (const [name, item] of Object.entries(value as Record<string, any>)) {
+    if (item?.mode === "disabled") result[name] = { mode: "disabled" };
+    else if (item?.mode === "mirror" && typeof item.source === "string" && item.source !== name)
+      result[name] = { mode: "mirror", source: item.source };
+  }
+  return result;
+}
 
 export function registerMonitors(server: IpcServer) {
-  let saved: Settings = { primary: COMPOSITOR.env.get("SHOJI_PRIMARY_OUTPUT") || "", outputs: [] };
+  let saved: Settings = { primary: COMPOSITOR.env.get("SHOJI_PRIMARY_OUTPUT") || "", outputs: [], modes: {} };
   let preview: Settings | null = null;
   let deadline = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const state = () => ({ primary: COMPOSITOR.output.list.includes(saved.primary) ? saved.primary : COMPOSITOR.output.list[0] || "", settings: saved, deadline,
+    modes: saved.modes,
+    disabled: Object.values(COMPOSITOR.output.current).filter(o => !o.enabled).map(o => o.name),
     outputs: COMPOSITOR.output.outputs.filter(o => o.enabled && o.resolution).map(o => ({
       name: o.name, description: o.description || o.model || o.name,
       x: o.position.x, y: o.position.y, scale: o.scale,
@@ -46,17 +60,34 @@ export function registerMonitors(server: IpcServer) {
     }
     if (!restoring && (names.size !== COMPOSITOR.output.list.length || !names.has(data.primary)))
       throw new Error("Выбери главный экран и настрой все подключённые мониторы");
-    return { primary: data.primary, outputs: supported };
+    return { primary: data.primary, outputs: supported, modes: restoring ? cleanModes((data as Partial<Settings>).modes) : saved.modes };
   }
   COMPOSITOR.output.configure(context => {
     const draft: DisplayConfigDraft = {};
     for (const output of context.connected) {
       const item = (preview || saved).outputs.find(o => o.name === output.name);
-      draft[output.name] = item ? { mode: "extend", position: { x: item.x, y: item.y }, scale: item.scale,
+      const mode = saved.modes[output.name];
+      const source = mode?.mode === "mirror" ? mode.source : "";
+      // A stale mirror (source gone, disabled or itself mirrored) falls back to extend.
+      const usable = source && source !== output.name && context.connected.some(o => o.name === source)
+        && saved.modes[source]?.mode !== "disabled" && saved.modes[source]?.mode !== "mirror";
+      if (mode?.mode === "disabled") draft[output.name] = { mode: "disabled" };
+      else if (usable) draft[output.name] = { mode: "mirror", source };
+      else draft[output.name] = item ? { mode: "extend", position: { x: item.x, y: item.y }, scale: item.scale,
         transform: output.transform,
         resolution: { width: item.width, height: item.height, refreshRate: item.refreshRate } }
         : { mode: "extend", resolution: "best", position: "auto", scale: 1 };
     }
+    // Never leave the desktop without a screen (e.g. the external display was
+    // unplugged while the laptop panel was disabled): wake the disabled ones.
+    // The saved mode is kept, so replugging restores the earlier setup.
+    if (context.connected.length && context.connected.every(o => draft[o.name]?.mode === "disabled"))
+      for (const output of context.connected) {
+        const item = saved.outputs.find(o => o.name === output.name);
+        draft[output.name] = item ? { mode: "extend", position: { x: item.x, y: item.y }, scale: item.scale,
+          transform: output.transform, resolution: { width: item.width, height: item.height, refreshRate: item.refreshRate } }
+          : { mode: "extend", resolution: "best", position: "auto", scale: 1 };
+      }
     return draft;
   });
   function cancel() {
@@ -88,7 +119,7 @@ export function registerMonitors(server: IpcServer) {
         throw new Error("Частота или масштаб изменились. Обнови настройки и примени их с проверкой.");
     }
     const previous = saved;
-    saved = { primary: next.primary, outputs: [
+    saved = { ...saved, primary: next.primary, outputs: [
       ...saved.outputs.filter(o => !COMPOSITOR.output.list.includes(o.name)), ...next.outputs,
     ] };
     try { COMPOSITOR.output.reconfigure(); }
@@ -100,7 +131,7 @@ export function registerMonitors(server: IpcServer) {
     if (preview) throw new Error("Сначала заверши проверку настроек");
     const next = validate(params);
     // Capture the actual layout, including outputs not present in the saved file.
-    saved = { primary: saved.primary || COMPOSITOR.output.list[0] || "", outputs: [
+    saved = { ...saved, primary: saved.primary || COMPOSITOR.output.list[0] || "", outputs: [
       ...saved.outputs.filter(o => !COMPOSITOR.output.list.includes(o.name)),
       ...state().outputs.map(o => ({ ...o })),
     ] };
@@ -128,7 +159,7 @@ export function registerMonitors(server: IpcServer) {
           || actual.position.x - item.x !== offsetX || actual.position.y - item.y !== offsetY)
         throw new Error("Система не применила выбранные параметры. Верни прежние настройки.");
     }
-    saved = { primary: preview.primary, outputs: [
+    saved = { ...saved, primary: preview.primary, outputs: [
       ...saved.outputs.filter(o => !COMPOSITOR.output.list.includes(o.name)),
       ...preview.outputs.map(o => ({ ...o, x: o.x + offsetX, y: o.y + offsetY })),
     ] };
@@ -136,6 +167,38 @@ export function registerMonitors(server: IpcServer) {
     deadline = 0;
     if (timer) clearTimeout(timer);
     timer = undefined;
+    notify();
+    return state();
+  });
+  server.handle("monitors.mode", params => {
+    if (preview) throw new Error("Сначала заверши проверку настроек");
+    const { name, mode, source } = (params || {}) as { name?: string; mode?: string; source?: string };
+    const live = COMPOSITOR.output.list;
+    const modes = { ...saved.modes };
+    const active = (n: string) => live.includes(n) && !modes[n];
+    if (typeof name !== "string") throw new Error("Некорректный монитор");
+    if (mode === "extend") {
+      if (!live.includes(name) && !Object.values(COMPOSITOR.output.current).some(o => o.name === name))
+        throw new Error("Список мониторов изменился. Обнови настройки.");
+      delete modes[name];
+    } else if (mode === "disabled") {
+      if (!live.includes(name)) throw new Error("Список мониторов изменился. Обнови настройки.");
+      // Mirrors of this screen fall back to extend, so drop them before the guard.
+      for (const [n, m] of Object.entries(modes)) if (m.mode === "mirror" && m.source === name) delete modes[n];
+      // Never turn off the last real screen: the desktop would be unreachable.
+      if (!live.some(n => n !== name && active(n))) throw new Error("Нельзя выключить последний экран");
+      modes[name] = { mode: "disabled" };
+    } else if (mode === "mirror") {
+      if (typeof source !== "string" || source === name || !live.includes(name) || !active(source))
+        throw new Error("Для зеркала нужен другой включённый экран");
+      if (Object.values(modes).some(m => m.mode === "mirror" && m.source === name))
+        throw new Error("Этот экран уже показывают на других. Сначала убери их зеркала.");
+      modes[name] = { mode: "mirror", source };
+    } else throw new Error("Некорректный режим монитора");
+    const previous = saved;
+    saved = { ...saved, modes };
+    try { COMPOSITOR.output.reconfigure(); }
+    catch (error) { saved = previous; COMPOSITOR.output.reconfigure(); throw error; }
     notify();
     return state();
   });
