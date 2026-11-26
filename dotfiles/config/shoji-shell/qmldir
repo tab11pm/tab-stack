@@ -42,6 +42,7 @@ MusicWidget 1.0 MusicWidget.qml
 WeatherWidget 1.0 WeatherWidget.qml
 GrainSurface 1.0 GrainSurface.qml
 DeepSeekWidget 1.0 DeepSeekWidget.qml
+KolonkaWidget 1.0 KolonkaWidget.qml
 HermesHud 1.0 HermesHud.qml
 WidgetSurface 1.0 WidgetSurface.qml
 GithubWidget 1.0 GithubWidget.qml

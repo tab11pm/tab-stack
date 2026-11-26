@@ -92,6 +92,16 @@ button is hidden when no battery is present. With `power-profiles-daemon`
 available, it lists the supported profiles and invokes `powerprofilesctl set`
 only when you choose a profile. Missing service/access errors are shown locally.
 
+The Yandex Station widget (`Колонка Яндекс`, widget editor) finds the speaker on the LAN by
+MAC (ARP, then a /24 ping sweep) and polls its player over SSH `:2222` every 4 s. It shows the
+track, progress and state, with play/pause, previous/next, stop, shuffle/repeat (`mpc`), a track
+list from `~/Music`, a volume slider with mute (`amixer sset Master`), a button that streams PC
+audio to the speaker (`play.sh --live`, needs `kolonka-live-audio.patch` applied to `alice-music`;
+several seconds of delay), a voice-helper (`desktop-voice` user unit) toggle and an SSH terminal.
+`play.sh`/`stop.sh` come from `$KOLONKA_DIR/alice-music` (default `~/Work/kolonka-lite`).
+The MAC is set in `kolonka-widget.py`; the `musicctl status` (mpc-style) parser is unverified
+against a live speaker.
+
 Local caches and session metadata can contain private repository names, discussion
 titles, rental labels and prompts. They are not publication material. Do not copy
 `~/.cache/shoji-shell`, `~/.local/state/shoji-shell`, CLI homes or `integrations.env`
