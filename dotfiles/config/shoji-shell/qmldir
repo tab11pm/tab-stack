@@ -6,6 +6,7 @@ singleton Notifications 1.0 Notifications.qml
 singleton Dock 1.0 Dock.qml
 UiText 1.0 UiText.qml
 ActionButton 1.0 ActionButton.qml
+MotionIcon 1.0 MotionIcon.qml
 Meter 1.0 Meter.qml
 NotificationCard 1.0 NotificationCard.qml
 NotificationCentre 1.0 NotificationCentre.qml

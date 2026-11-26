@@ -11,14 +11,15 @@ ColumnLayout {
     id: panel
     required property var stats
     property bool active: visible
+    property string sectionMode: "all"
     property string section: ""
     property var promptNetwork: null
     property string status: ""
     property bool outputsExpanded: false
+    readonly property real heightReserve: wifiDevices.heightReserve + bluetoothDevices.heightReserve + audioDevices.heightReserve
     spacing: 12
 
-    Brightness { id: backlight; active: panel.active }
-    Binding { target: Media; property: "active"; value: panel.active }
+    Brightness { id: backlight; active: panel.active && panel.sectionMode === "all" }
 
     function gib(bytes) { return (bytes / 1073741824).toFixed(1); }
     function join(network) {
@@ -58,6 +59,7 @@ ColumnLayout {
     }
 
     RowLayout {
+        visible: panel.sectionMode !== "audio"
         Layout.fillWidth: true
         spacing: 8
         ConnectionTile {
@@ -79,7 +81,8 @@ ColumnLayout {
     }
 
     DeviceList {
-        expanded: panel.section === "wifi"
+        id: wifiDevices
+        expanded: panel.sectionMode !== "audio" && panel.section === "wifi"
         animate: panel.active
         RowLayout {
             Layout.fillWidth: true
@@ -123,15 +126,16 @@ ColumnLayout {
                 onAccepted: panel.submitPassword()
             }
             RowLayout {
-                ActionButton { text: "Подключиться"; highlighted: true; onClicked: panel.submitPassword() }
-                ActionButton { text: "Отмена"; onClicked: { password.clear(); panel.promptNetwork = null; } }
+                ActionButton { translucent: panel.sectionMode !== "all"; text: "Подключиться"; highlighted: true; onClicked: panel.submitPassword() }
+                ActionButton { translucent: panel.sectionMode !== "all"; text: "Отмена"; onClicked: { password.clear(); panel.promptNetwork = null; } }
             }
         }
         UiText { text: panel.status; visible: text !== ""; color: Theme.danger; wrapMode: Text.Wrap; Layout.fillWidth: true }
     }
 
     DeviceList {
-        expanded: panel.section === "bluetooth"
+        id: bluetoothDevices
+        expanded: panel.sectionMode !== "audio" && panel.section === "bluetooth"
         animate: panel.active
         RowLayout {
             Layout.fillWidth: true
@@ -169,6 +173,7 @@ ColumnLayout {
     }
 
     ConnectionTile {
+        visible: panel.sectionMode === "all"
         Layout.fillWidth: true
         text: "Мониторы"; glyph: "brightness"
         subtitle: Quickshell.screens.length + " · расположение, частота и масштаб"
@@ -177,27 +182,30 @@ ColumnLayout {
     }
     MonitorSettings {
         Layout.fillWidth: true
-        visible: panel.section === "monitors"
+        visible: panel.sectionMode === "all" && panel.section === "monitors"
         active: panel.active && visible
     }
 
-    UiText { text: "Звук и экран"; color: Theme.muted; font.pixelSize: 11; font.weight: Font.Medium; Layout.topMargin: 4 }
-    NightLightSettings { Layout.fillWidth: true }
-    IdleSleepSettings { Layout.fillWidth: true }
-    CursorFxSettings { Layout.fillWidth: true }
+    UiText { text: panel.sectionMode === "all" ? "Звук и экран" : "Звук"; visible: panel.sectionMode !== "connections"; color: Theme.muted; font.pixelSize: 11; font.weight: Font.Medium; Layout.topMargin: 4 }
+    NightLightSettings { visible: panel.sectionMode === "all"; Layout.fillWidth: true }
+    IdleSleepSettings { visible: panel.sectionMode === "all"; Layout.fillWidth: true }
+    CursorFxSettings { visible: panel.sectionMode === "all"; Layout.fillWidth: true }
     Rectangle {
+        visible: panel.sectionMode !== "connections"
         Layout.fillWidth: true
         implicitHeight: soundContent.implicitHeight + 24
-        radius: 8; color: Qt.rgba(Theme.ink.r, Theme.ink.g, Theme.ink.b, 0.035)
+        radius: Theme.surfaceRadius; color: Qt.rgba(Theme.ink.r, Theme.ink.g, Theme.ink.b, 0.035)
         border.width: 1; border.color: Qt.rgba(Theme.ink.r, Theme.ink.g, Theme.ink.b, 0.07)
         ColumnLayout {
             id: soundContent
             anchors { top: parent.top; left: parent.left; right: parent.right; margins: 12 }
             spacing: 8
             RowLayout {
+                visible: panel.sectionMode === "all"
                 Layout.fillWidth: true
                 UiText { text: "Яркость"; color: Theme.muted; font.pixelSize: 11; Layout.fillWidth: true }
                 ActionButton {
+                    translucent: panel.sectionMode !== "all"
                     text: backlight.connector; hint: "Выбрать монитор"
                     icon.source: Qt.resolvedUrl("icons/chevron-right.svg"); icon.width: 14; icon.height: 14
                     implicitHeight: 24; font.pixelSize: 10; padding: 4
@@ -210,10 +218,12 @@ ColumnLayout {
                 }
             }
             RowLayout {
+                visible: panel.sectionMode === "all"
                 Layout.fillWidth: true; spacing: 10
-                PanelIcon { name: "brightness"; Layout.preferredWidth: 28 }
+                PanelIcon { name: "brightness"; level: brightnessSlider.value; Layout.preferredWidth: 28 }
                 PanelSlider {
                     id: brightnessSlider
+                    roundHandle: true
                     Layout.fillWidth: true
                     value: backlight.value / 100
                     enabled: backlight.available && !backlight.busy
@@ -223,11 +233,12 @@ ColumnLayout {
                 }
                 UiText { text: backlight.busy ? "…" : backlight.available ? Math.round(brightnessSlider.value * 100) + "%" : "—"; Layout.preferredWidth: 36; horizontalAlignment: Text.AlignRight; font.pixelSize: 11 }
             }
-            UiText { text: backlight.error; visible: !backlight.busy && text !== ""; color: Theme.muted; font.pixelSize: 10; wrapMode: Text.Wrap; Layout.fillWidth: true }
+            UiText { text: backlight.error; visible: panel.sectionMode === "all" && !backlight.busy && text !== ""; color: Theme.muted; font.pixelSize: 10; wrapMode: Text.Wrap; Layout.fillWidth: true }
             RowLayout {
                 Layout.fillWidth: true; spacing: 10
                 ActionButton {
-                    icon.source: Qt.resolvedUrl(Services.muted ? "icons/muted.svg" : "icons/volume.svg")
+                    translucent: panel.sectionMode !== "all"
+                    contentItem: PanelIcon { name: Services.muted ? "muted" : "volume"; level: Services.volume / 100 }
                     hint: Services.muted ? "Включить звук" : "Выключить звук"
                     implicitWidth: 28; implicitHeight: 28; padding: 4
                     enabled: Services.sink !== null && Services.sink.audio !== null
@@ -253,6 +264,7 @@ ColumnLayout {
                 onClicked: panel.outputsExpanded = !panel.outputsExpanded
             }
             DeviceList {
+                id: audioDevices
                 expanded: panel.outputsExpanded
                 animate: panel.active
                 Repeater {
@@ -271,11 +283,12 @@ ColumnLayout {
         }
     }
 
-    UiText { text: "Медиа"; color: Theme.muted; font.pixelSize: 11; font.weight: Font.Medium; Layout.topMargin: 4 }
+    UiText { text: "Медиа"; visible: panel.sectionMode !== "connections"; color: Theme.muted; font.pixelSize: 11; font.weight: Font.Medium; Layout.topMargin: 4 }
     Rectangle {
+        visible: panel.sectionMode !== "connections"
         Layout.fillWidth: true
         implicitHeight: mediaContent.implicitHeight + 24
-        radius: 8; color: Qt.rgba(Theme.ink.r, Theme.ink.g, Theme.ink.b, 0.035)
+        radius: Theme.surfaceRadius; color: Qt.rgba(Theme.ink.r, Theme.ink.g, Theme.ink.b, 0.035)
         border.width: 1; border.color: Qt.rgba(Theme.ink.r, Theme.ink.g, Theme.ink.b, 0.07)
         ColumnLayout {
             id: mediaContent
@@ -284,7 +297,7 @@ ColumnLayout {
             RowLayout {
                 Layout.fillWidth: true; spacing: 10
                 Rectangle {
-                    Layout.preferredWidth: 46; Layout.preferredHeight: 46; radius: 12; color: Theme.surface
+                    Layout.preferredWidth: 46; Layout.preferredHeight: 46; radius: Theme.surfaceRadius; color: Theme.surface
                     Image { anchors.fill: parent; source: Media.art; fillMode: Image.PreserveAspectCrop; visible: Media.art !== ""; sourceSize.width: 92; sourceSize.height: 92 }
                     PanelIcon { anchors.centerIn: parent; name: "headphones"; tint: Theme.accent; visible: Media.art === "" }
                 }
@@ -295,9 +308,16 @@ ColumnLayout {
                 }
                 RowLayout {
                     spacing: 2
-                    ActionButton { icon.source: Qt.resolvedUrl("icons/previous.svg"); hint: "Предыдущий трек"; implicitWidth: 26; implicitHeight: 30; padding: 4; enabled: Media.usable && Media.player.canGoPrevious; onClicked: Media.previous() }
-                    ActionButton { icon.source: Qt.resolvedUrl(Media.playing ? "icons/pause.svg" : "icons/play.svg"); hint: Media.playing ? "Пауза" : "Воспроизвести"; implicitWidth: 32; implicitHeight: 32; padding: 6; highlighted: true; enabled: Media.usable && Media.player.canTogglePlaying; onClicked: Media.toggle() }
-                    ActionButton { icon.source: Qt.resolvedUrl("icons/next.svg"); hint: "Следующий трек"; implicitWidth: 26; implicitHeight: 30; padding: 4; enabled: Media.usable && Media.player.canGoNext; onClicked: Media.next() }
+                    ActionButton { translucent: panel.sectionMode !== "all"; icon.source: Qt.resolvedUrl("icons/previous.svg"); hint: "Предыдущий трек"; implicitWidth: 26; implicitHeight: 30; padding: 4; enabled: Media.usable && Media.player.canGoPrevious; onClicked: Media.previous() }
+                    ActionButton {
+                        translucent: panel.sectionMode !== "all"
+                        contentItem: MotionIcon { kind: "playback"; active: Media.playing; tint: panel.sectionMode !== "all" ? Theme.accent : Theme.surface }
+                        hint: Media.playing ? "Пауза" : "Воспроизвести"
+                        implicitWidth: 32; implicitHeight: 32; padding: 6; highlighted: true
+                        enabled: Media.usable && Media.player.canTogglePlaying
+                        onClicked: Media.toggle()
+                    }
+                    ActionButton { translucent: panel.sectionMode !== "all"; icon.source: Qt.resolvedUrl("icons/next.svg"); hint: "Следующий трек"; implicitWidth: 26; implicitHeight: 30; padding: 4; enabled: Media.usable && Media.player.canGoNext; onClicked: Media.next() }
                 }
             }
             PanelSlider {
@@ -316,11 +336,13 @@ ColumnLayout {
     }
 
     RowLayout {
+        visible: panel.sectionMode === "all"
         Layout.fillWidth: true
         UiText { text: "Ресурсы"; color: Theme.muted; font.pixelSize: 11; font.weight: Font.Medium; Layout.fillWidth: true }
         UiText { text: panel.stats.uptime === undefined ? "" : "В работе " + Math.floor(panel.stats.uptime / 3600) + " ч"; color: Theme.muted; font.pixelSize: 11 }
     }
     RowLayout {
+        visible: panel.sectionMode === "all"
         Layout.fillWidth: true; spacing: 8
         StatCard { Layout.fillWidth: true; Layout.preferredWidth: 1; label: "CPU"; detail: "Процессор"; reading: panel.stats.cpu === undefined ? "…" : panel.stats.cpu + "%"; fraction: (panel.stats.cpu || 0) / 100 }
         StatCard {
@@ -337,8 +359,9 @@ ColumnLayout {
         }
     }
     Rectangle {
+        visible: panel.sectionMode === "all"
         Layout.fillWidth: true; implicitHeight: diskContent.implicitHeight + 28
-        radius: 8; color: Qt.rgba(Theme.ink.r, Theme.ink.g, Theme.ink.b, 0.035)
+        radius: Theme.surfaceRadius; color: Qt.rgba(Theme.ink.r, Theme.ink.g, Theme.ink.b, 0.035)
         border.width: 1; border.color: Qt.rgba(Theme.ink.r, Theme.ink.g, Theme.ink.b, 0.07)
         ColumnLayout {
             id: diskContent
