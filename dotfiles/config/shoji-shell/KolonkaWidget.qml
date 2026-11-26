@@ -243,14 +243,14 @@ Item {
                 color: Qt.rgba(Theme.ink.r, Theme.ink.g, Theme.ink.b, 0.10)
                 Rectangle {
                     height: parent.height; radius: 2; color: Theme.accent
-                    width: parent.width * Math.min(1, root.elapsed / Math.max(1, root.speaker.total || 1))
+                    width: root.speaker.total > 0 ? parent.width * Math.min(1, root.elapsed / root.speaker.total) : 0
                     Behavior on width { NumberAnimation { duration: 900 } }
                 }
             }
             RowLayout {
                 Layout.fillWidth: true
                 UiText { text: root.clock(root.elapsed); font.pixelSize: 10; color: Theme.muted; Layout.fillWidth: true }
-                UiText { text: root.clock(root.speaker.total || 0); font.pixelSize: 10; color: Theme.muted }
+                UiText { text: root.speaker.total > 0 ? root.clock(root.speaker.total) : "—"; font.pixelSize: 10; color: Theme.muted }
             }
         }
 

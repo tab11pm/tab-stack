@@ -5,20 +5,24 @@
   kolonka-widget.py ctl ip action [arg] — команда плееру/голосу
   kolonka-widget.py tracks            — JSON-список файлов из ~/Music
 """
+import functools
 import ipaddress
 import json
 import os
 import re
+import shlex
+import time
 import socket
 import subprocess
 import sys
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 MAC = "3c:0b:4f:6a:6f:58"
 SSH_PORT = 2222
 MUSICCTL = "sh /data/opt/bin/musicctl"
+MUSIC_PORT = 8000
 MUSIC_DIR = Path.home() / "Music"
 AUDIO = (".mp3", ".flac", ".ogg", ".m4a", ".wav", ".opus", ".aac")  # как EXTS в music_server.py
 VOICE_UNIT = "desktop-voice"
@@ -77,7 +81,8 @@ def parse_player(text):
     if m:
         info.update(playing=m[1] == "playing", paused=m[1] == "paused",
                     elapsed=seconds(m[2]), total=seconds(m[3]))
-        name = re.sub(r"\.\w{2,4}$", "", unquote(lines[0].rsplit("/", 1)[-1])).strip()
+        info["file"] = unquote(lines[0].rsplit("/", 1)[-1]).strip()
+        name = re.sub(r"\.\w{2,4}$", "", info["file"])
         artist, _, title = name.partition(" - ")
         info.update(title=title or artist, artist=artist if title else "")
         if info["live"]:
@@ -92,6 +97,17 @@ def parse_player(text):
     return info
 
 
+@functools.lru_cache(maxsize=None)
+def local_duration(name):
+    """mpd не знает длительность файлов, которые читает по HTTP без Range; берём её у файла на ПК."""
+    try:
+        out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                              str(MUSIC_DIR / name)], capture_output=True, text=True, timeout=5).stdout
+        return int(float(out))
+    except (ValueError, OSError, subprocess.TimeoutExpired):
+        return 0
+
+
 def status(ip):
     if not ip or not ssh_open(ip):
         ip = find_speaker()
@@ -104,12 +120,34 @@ def status(ip):
             r = subprocess.run([*SSH, f"root@{ip}", f"{MUSICCTL} status; amixer sget Master"],
                                capture_output=True, text=True, timeout=10)
             out.update(parse_player(r.stdout))
+            if out.get("file") and not out["total"] and "/" not in out["file"]:
+                out["total"] = local_duration(out["file"])
     return out
 
 
 def track_names():
     # порядок как у playlist() в music_server.py: sorted по имени
     return sorted(p.name for p in MUSIC_DIR.iterdir() if p.suffix.lower() in AUDIO) if MUSIC_DIR.is_dir() else []
+
+
+def track_script(ip, first):
+    """Очередь собираем сами: выбранный трек стартует сразу, остальные дописываются следом
+    (без запуска трека №1 и без гонки с асинхронной загрузкой m3u в mpd)."""
+    names = track_names()
+    i = names.index(first)
+    order = names[i:] + names[:i]  # после последнего трека круг продолжается с начала
+    src = re.search(r"src (\S+)", run("ip", "route", "get", ip))
+    if not src:
+        sys.exit("нет маршрута до колонки")
+    try:
+        socket.create_connection(("127.0.0.1", MUSIC_PORT), timeout=1).close()
+    except OSError:
+        subprocess.Popen(["python3", str(MUSIC / "music_server.py")], start_new_session=True,
+                         stdout=open("/tmp/music-server.log", "w"), stderr=subprocess.STDOUT)
+        time.sleep(1)
+    urls = [shlex.quote(f"http://{src[1]}:{MUSIC_PORT}/files/{quote(n)}") for n in order]
+    mpc = "PATH=/opt/bin:$PATH mpc"
+    return f"{mpc} clear && {mpc} add {urls[0]} && {mpc} play && " + " && ".join(f"{mpc} add {u}" for u in urls[1:])
 
 
 def ctl(ip, action, arg):
@@ -126,10 +164,7 @@ def ctl(ip, action, arg):
     elif action in ("pause", "resume", "next", "prev"):
         cmd = [*SSH, f"root@{ip}", f"{MUSICCTL} {action}"]
     elif action == "track" and arg in track_names():
-        # весь плейлист с нужного места, иначе у одиночного трека нет «следующего»
-        subprocess.run(["bash", str(MUSIC / "play.sh")], capture_output=True, text=True, timeout=30, check=True)
-        n = track_names().index(arg) + 1
-        cmd = [*SSH, f"root@{ip}", f"PATH=/opt/bin:$PATH mpc play {n}"]
+        cmd = [*SSH, f"root@{ip}", track_script(ip, arg)]
     elif action == "random" and arg in ("on", "off"):
         # shortcut: mpc лежит в Entware (/opt/bin), как и сам mpd; на живой колонке не проверено
         cmd = [*SSH, f"root@{ip}", f"PATH=/opt/bin:$PATH mpc random {arg}"]
