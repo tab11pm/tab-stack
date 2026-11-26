@@ -1,5 +1,6 @@
 """Launcher contracts; no desktop locking or password authentication."""
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import tempfile
@@ -12,6 +13,26 @@ spec.loader.exec_module(launch)
 
 
 class LauncherTests(unittest.TestCase):
+
+    def test_lock_backgrounds_prefer_drawer_choice_per_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            desktop, chosen = root / "desk.png", root / "lock.png"
+            desktop.write_bytes(b"x"); chosen.write_bytes(b"x")
+            (root / "wallpapers.json").write_text(json.dumps({"outputs": {
+                "DP-1": desktop.as_uri(), "HDMI-A-1": desktop.as_uri(), "DP-2": "https://example.com/a.png"}}))
+            (root / "system-settings.json").write_text(json.dumps({"lockWallpapers": {
+                "HDMI-A-1": chosen.as_uri(), "DP-3": (root / "missing.png").as_uri()}}))
+            with patch.object(launch, "SOURCE", root / "lock"):
+                self.assertEqual(launch.lock_backgrounds(),
+                                 {"DP-1": desktop.as_uri(), "HDMI-A-1": chosen.as_uri()})
+
+    def test_lock_backgrounds_survive_missing_or_broken_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "system-settings.json").write_text("{broken")
+            with patch.object(launch, "SOURCE", root / "lock"):
+                self.assertEqual(launch.lock_backgrounds(), {})
     def test_check_refuses_compositor_without_lock_protocol(self):
         result = subprocess.CompletedProcess([], 0, "SHOJI_LOCK_CHECK_OK", "")
         with patch.object(launch.subprocess, "run", return_value=result):

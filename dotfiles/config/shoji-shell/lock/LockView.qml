@@ -76,8 +76,17 @@ Rectangle {
     property real appearance: root.preview || Desktop.Theme.reducedMotion ? 1 : 0
     Behavior on appearance { NumberAnimation { duration: Desktop.Theme.duration(220); easing.type: Easing.OutCubic } }
     property bool revealed: false
-    // shortcut: matches grp:alt_shift_toggle in shojiwm input config; read it from settings when the locker can.
-    readonly property string layoutShortcut: "Alt+Shift"
+    property string layoutOptions: "grp:alt_shift_toggle"
+    readonly property string layoutShortcut: layoutOptions === "grp:ctrl_shift_toggle" ? "Ctrl+Shift"
+        : layoutOptions === "grp:caps_toggle" ? "Caps Lock" : "Alt+Shift"
+    FileView {
+        path: Desktop.Settings.configHome + "/shoji-shell/system-settings.json"
+        preload: true; printErrors: false
+        onLoaded: {
+            try { root.layoutOptions = ((JSON.parse(text()).values || {}).keyboard || {}).options || "grp:alt_shift_toggle"; }
+            catch (failure) { root.layoutOptions = "grp:alt_shift_toggle"; }
+        }
+    }
     property url avatarUrl: ""
     Process {
         running: true

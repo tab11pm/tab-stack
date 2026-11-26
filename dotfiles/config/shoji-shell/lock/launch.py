@@ -51,25 +51,48 @@ def pam_configuration(runtime):
     return str(directory), "shoji-lock"
 
 
+def file_uri(value):
+    if not isinstance(value, str):
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme not in ("", "file"):
+        return None
+    path = Path(unquote(parsed.path) if parsed.scheme == "file" else value)
+    return path.as_uri() if path.is_absolute() and path.is_file() else None
+
+
+def read_json(name):
+    try:
+        return json.loads((SOURCE.parent / name).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
 def background_url():
     fallback = (SOURCE.parent / "assets/default-wallpaper.svg").as_uri()
     try:
-        document = json.loads((SOURCE.parent / "wallpapers.json").read_text())
-        outputs = document.get("outputs", {})
+        outputs = read_json("wallpapers.json").get("outputs", {})
         primary = os.environ.get("SHOJI_PRIMARY_OUTPUT", "")
-        candidates = [outputs.get(primary), *outputs.values()]
-        for value in candidates:
-            if not isinstance(value, str):
-                continue
-            parsed = urlparse(value)
-            if parsed.scheme not in ("", "file"):
-                continue
-            path = Path(unquote(parsed.path) if parsed.scheme == "file" else value)
-            if path.is_absolute() and path.is_file():
-                return path.as_uri()
-    except (OSError, ValueError, AttributeError):
+        for value in [outputs.get(primary), *outputs.values()]:
+            if uri := file_uri(value):
+                return uri
+    except AttributeError:
         pass
     return fallback
+
+
+def lock_backgrounds():
+    """Per-output lock wallpapers: the drawer's choice, else that output's desktop still."""
+    result = {}
+    try:
+        desktop = read_json("wallpapers.json").get("outputs", {})
+        chosen = read_json("system-settings.json").get("lockWallpapers") or {}
+        for name in {*desktop, *chosen}:
+            if uri := file_uri(chosen.get(name)) or file_uri(desktop.get(name)):
+                result[name] = uri
+    except AttributeError:
+        pass
+    return result
 
 
 def check(environment):
@@ -136,7 +159,8 @@ def main():
     mode.add_argument("--check", action="store_true", help="Check QML, PAM policy and compositor; do not lock")
     mode.add_argument("--preview", action="store_true", help="Open a non-locking preview window")
     args = parser.parse_args()
-    environment = dict(os.environ, SHOJI_LOCK_BACKGROUND=background_url())
+    environment = dict(os.environ, SHOJI_LOCK_BACKGROUND=background_url(),
+                       SHOJI_LOCK_BACKGROUNDS=json.dumps(lock_backgrounds()))
     if args.preview:
         return subprocess.call(["quickshell", "--path", str(SOURCE.parent / "lock-preview.qml")], env=environment)
     runtime = private_runtime()

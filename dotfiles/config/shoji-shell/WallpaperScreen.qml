@@ -93,6 +93,11 @@ Scope {
             sourceComponent: AiLimitsWidget {}
         }
         WidgetWaveLoader {
+            id: voiceLoader
+            widgetId: "voice"; output: root.output; transition: wallpaperTransition
+            sourceComponent: VoiceDesktopWidget { shell: root.shell; output: root.output }
+        }
+        WidgetWaveLoader {
             id: musicLoader
             widgetId: "music"; output: root.output; transition: wallpaperTransition
             y: !custom && placement.above === "limits" ? limitsLoader.y - height - placement.y

@@ -32,6 +32,17 @@ ShellRoot {
     property bool shortcutManagerOpen: false
     property bool panelReady: false
     property var desktopMusic: null
+    Binding {
+        target: Media
+        property: "active"
+        value: (root.panelPage === "controls" && root.panelReady)
+            || (SystemSettings.opened && SystemSettings.page === "audio")
+    }
+    SystemSettingsDrawer {}
+    Connections {
+        target: SystemSettings
+        function onOpenedChanged(): void { if (SystemSettings.opened) root.panelPage = ""; }
+    }
     property var stats: ({})
     property double statsAt: 0
     property bool statsReady: false

@@ -90,3 +90,15 @@ WidgetEditorScreen 1.0 WidgetEditorScreen.qml
 
 Shortcuts 1.0 Shortcuts.qml
 ShortcutManager 1.0 ShortcutManager.qml
+SettingsActionButton 1.0 SettingsActionButton.qml
+WallpaperSettings 1.0 WallpaperSettings.qml
+DesktopWallpaperSettings 1.0 DesktopWallpaperSettings.qml
+ConnectionsSettings 1.0 ConnectionsSettings.qml
+LockPreview 1.0 LockPreview.qml
+singleton SystemSettings 1.0 SystemSettings.qml
+SystemSettingsDrawer 1.0 SystemSettingsDrawer.qml
+SystemSettingsContent 1.0 SystemSettingsContent.qml
+SettingsRow 1.0 SettingsRow.qml
+SettingsChoice 1.0 SettingsChoice.qml
+SettingsField 1.0 SettingsField.qml
+SettingsToggle 1.0 SettingsToggle.qml

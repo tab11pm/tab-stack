@@ -27,6 +27,7 @@ import {
 import type { CompositionRenderable, ManagedWindowRect } from "shoji_wm/types";
 import { createIpcServer } from "shoji_wm/ipc";
 import { registerMonitors } from "./monitors";
+import { registerSystemSettings } from "./system-settings";
 import { isMissingShortcutFile, parseShortcutSettings, resolveShortcuts, type ShortcutDefinition } from "./shortcut-model";
 import {
   HybridWindowManager,
@@ -425,6 +426,7 @@ const SHORTCUT_LABELS: Record<string, [string, string]> = {
   launcher: ["Запуск приложений", "ЗАПУСК И СИСТЕМА"],
   shortcuts: ["Горячие клавиши", "ЗАПУСК И СИСТЕМА"],
   "shortcut-manager": ["Настройка горячих клавиш", "ЗАПУСК И СИСТЕМА"],
+  "system-settings": ["Системные настройки", "ЗАПУСК И СИСТЕМА"],
   "lock-session": ["Заблокировать экран", "ЗАПУСК И СИСТЕМА"],
   "wallpaper-picker": ["Обои и виджеты", "ЗАПУСК И СИСТЕМА"],
   "shader-picker": ["Эффекты экрана", "ЗАПУСК И СИСТЕМА"],
@@ -539,6 +541,13 @@ defineShortcut("shortcuts", "Super+K", () => {
     "call", "shortcuts", "toggle", HYBRID_WINDOW_MANAGER.getCurrentMonitorName(),
   ] });
 });
+defineShortcut("system-settings", "Super+I", () => {
+  COMPOSITOR.process.spawn({ command: [
+    "quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
+    "call", "settings", "toggle", settingsOutput(),
+  ] });
+});
+
 defineShortcut("shortcut-manager", "Super+Shift+K", () => {
   COMPOSITOR.process.spawn({ command: [
     "quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
@@ -690,30 +699,8 @@ WORKSPACE_IPC.handle("shortcuts.get", () => configuredShortcuts.rows.map(({ hand
 
 registerMonitors(WORKSPACE_IPC);
 
-COMPOSITOR.input.configure((input, _context) => {
-  input.global = {
-    touchpad: {
-      tapToClick: true,
-      naturalScroll: true,
-      scrollMethod: "twoFinger",
-      disableWhileTyping: true,
-      scrollFactor: 0.3,
-    },
-    pointer: {
-      pointerAccel: 0.0,
-      accelProfile: "flat",
-      motionSpace: "logical",
-    },
-    keyboard: {
-      layout: "us,ru",
-      variant: ",ruintl_ru",
-      options: "grp:alt_shift_toggle",
-      repeatRate: 60,
-      repeatDelay: 250,
-    },
-  };
-
-});
+// Keyboard, pointer and touchpad come from the settings drawer (Super+I); defaults match the old inline config.
+const settingsOutput = registerSystemSettings(WORKSPACE_IPC, () => HYBRID_WINDOW_MANAGER.getCurrentMonitorName());
 
 HYBRID_WINDOW_MANAGER.configureWorkspaceGestureSpeed({
   workspaceScrollFactor: 1.5,
