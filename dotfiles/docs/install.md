@@ -39,6 +39,21 @@ and the package list as a capability checklist. Install native development heade
 GTK4/layer-shell, Poppler GLib and Protocol Buffers for Walker. Do not expect the
 Arch package names or KDE polkit executable path to be universal.
 
+## Fresh Arch: one command
+
+On a fresh Arch install with working GPU drivers, run steps 1–4 below plus the
+session and SDDM entries in one go, as your desktop user from a TTY:
+
+```bash
+./dotfiles/scripts/bootstrap-arch.sh            # add --with-sleep-lock, --with-notifications
+```
+
+It installs `dependencies/arch.txt` and `sddm`, paru (if no AUR helper) and Elephant,
+builds and installs every component, installs `tab-stack.desktop` and the greeter
+file only when absent or identical, and enables `sddm` and `bluetooth`. It stops
+on the first error and can be re-run. It does not configure GPU drivers or a
+Wi-Fi secret agent. On an existing desktop, follow the manual steps instead.
+
 ## 1. Build and install the compositor fork
 
 From the `tab-stack` repository root:
