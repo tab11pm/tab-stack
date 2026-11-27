@@ -15,10 +15,21 @@ COMPONENTS = ("shojiwm", "shoji-shell", "walker", "elephant", "ghostty", "portal
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true", help="write files; default only prints the plan")
-    parser.add_argument("--component", choices=(*COMPONENTS, "session"), action="append", help="repeat to select components; default: all")
+    parser.add_argument("--component", choices=(*COMPONENTS, "session", "sleep-lock"), action="append", help="repeat to select components; default: all")
+    parser.add_argument('--rollback', type=Path, metavar='MANIFEST', help='guarded rollback of a scoped session/sleep-lock transaction; no services changed')
     parser.add_argument("--target-home", type=Path, help="stage into an isolated home; ignore XDG directory overrides")
     parser.add_argument("--expect-existing", action="append", default=[], metavar="PATH=SHA256", help="reviewed checksum for an existing session file")
     args = parser.parse_args()
+    if args.rollback:
+        if args.apply or args.component or args.expect_existing or os.geteuid() == 0:
+            parser.error('Rollback must run separately as your desktop user')
+        from session_install import rollback
+        try:
+            rollback(args.rollback)
+        except (OSError, ValueError, KeyError) as exc:
+            parser.error(str(exc))
+        print('Scoped transaction rolled back; no services changed. Review daemon-reload before use.')
+        return
     home = args.target_home.resolve() if args.target_home else Path.home()
     config = home / ".config" if args.target_home else Path(os.environ.get("XDG_CONFIG_HOME") or home / ".config")
     data = home / ".local/share" if args.target_home else Path(os.environ.get("XDG_DATA_HOME") or home / ".local/share")
@@ -30,8 +41,25 @@ def main():
             parser.error("XDG targets must not contain the source checkout")
     plan = []
     selected = tuple(dict.fromkeys(args.component or COMPONENTS))
-    if "session" in selected and len(selected) != 1:
+    if any(name in selected for name in ('session', 'sleep-lock')) and len(selected) != 1:
         parser.error("Install session separately from legacy directory components")
+    if selected == ('sleep-lock',):
+        if args.apply and os.geteuid() == 0:
+            parser.error('Run as your desktop user, not root or sudo')
+        from sleep_lock_install import sleep_changes
+        from session_install import apply_files
+        try:
+            reviewed = dict(item.rsplit('=', 1) for item in args.expect_existing)
+            changes = sleep_changes(ROOT, home, config, reviewed)
+            for target in changes:
+                print(f'sleep-lock -> {target}')
+            if args.apply:
+                print(f"Sleep lock manifest: {apply_files(changes, state / 'tab-stack/backups')}")
+            else:
+                print('Preview only; no files or services changed.')
+        except (ValueError, OSError) as exc:
+            parser.error(str(exc))
+        return
     if selected == ("session",):
         if args.apply and os.geteuid() == 0:
             parser.error("Run as your desktop user, not root or sudo")
@@ -75,6 +103,9 @@ def main():
                     parser.error("Missing QML shader binaries; run scripts/build-shaders.sh first")
             if not src.joinpath("SwitcherInput/libswitcherinputplugin.so").is_file():
                 parser.error("Missing switcher input plugin; run scripts/build-switcher-input.sh first")
+            shell_binary = Path(os.environ.get("SHOJI_QUICKSHELL") or data / "shoji-shell/quickshell/bin/quickshell")
+            if not shell_binary.is_file() or not os.access(shell_binary, os.X_OK):
+                parser.error("Missing patched Quickshell; build/install scripts/build-quickshell.sh first (or set SHOJI_QUICKSHELL)")
         if src.name == "shojiwm" and not Path("/usr/lib/shojiwm/packages/shoji_wm").is_dir():
             parser.error("Install the pinned ShojiWM fork and runtime first")
     os.umask(0o077)
@@ -94,7 +125,7 @@ def main():
         dst.parent.mkdir(parents=True, exist_ok=True)
         try:
             if src.is_dir():
-                shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "shortcuts.json", "deepseek-api-key", "night-light.json", "idle-sleep.json", "cursor-fx.json", "widget-layouts.json", "node_modules"))
+                shutil.copytree(src, dst, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "shortcuts.json", "deepseek-api-key", "hermes-server", "night-light.json", "idle-sleep.json", "cursor-fx.json", "widget-layouts.json", "node_modules"))
             else:
                 shutil.copy2(src, dst)
             if dst == config / "shoji-shell":
@@ -110,7 +141,7 @@ def main():
                 if saved_shortcuts.is_file() and not saved_shortcuts.is_symlink():
                     shutil.copy2(saved_shortcuts, dst / "shortcuts.json")
             if dst == config / "shoji-shell" and previous.is_dir():
-                for name in ("integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "deepseek-api-key", "night-light.json", "idle-sleep.json", "cursor-fx.json", "widget-layouts.json"):
+                for name in ("integrations.env", "wallpapers.json", "wallpaper-groups.json", "monitors.json", "deepseek-api-key", "hermes-server", "night-light.json", "idle-sleep.json", "cursor-fx.json", "widget-layouts.json"):
                     old = previous / name
                     if old.is_file() and not old.is_symlink():
                         shutil.copy2(old, dst / name)

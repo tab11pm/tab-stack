@@ -1,0 +1,17 @@
+[Unit]
+Description=Lock the independent tab-stack session before sleep
+PartOf=tab-stack-session.target
+After=dbus.socket
+Requires=dbus.socket
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/bin/python3 %E/shojiwm/scripts/sleep_lock.py run
+Restart=on-failure
+RestartSec=2
+TimeoutStartSec=20s
+TimeoutStopSec=10s
+# Launcher and locker enter their own scope; normal cgroup cleanup is safe here.
+KillMode=control-group
+UMask=0077

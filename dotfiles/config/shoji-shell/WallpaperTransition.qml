@@ -6,6 +6,9 @@ Item {
     id: root
     required property string outputName
     readonly property string requestedSource: Wallpapers.current(outputName)
+    property string failedSource: ""
+    readonly property string effectiveSource: failedSource === requestedSource ? Wallpapers.fallback : requestedSource
+    readonly property var effectiveFrame: failedSource === requestedSource ? null : requestedFrame
     readonly property var requestedFrame: Wallpapers.frameFor(outputName)
     readonly property var output: Quickshell.screens.find(s => s.name === outputName)
     readonly property vector4d outputRect: Qt.vector4d(output ? output.x : 0, output ? output.y : 0, width, height)
@@ -41,16 +44,16 @@ Item {
     function loadRequested() {
         if (!initialized || !Wallpapers.ready || transitioning || preparing) return;
         if (LiveWallpapers.busy && !LiveWallpapers.covered) return;
-        if (hasWallpaper && front.source.toString() === requestedSource
-                && JSON.stringify(front.framing) === JSON.stringify(requestedFrame)
+        if (hasWallpaper && front.source.toString() === effectiveSource
+                && JSON.stringify(front.framing) === JSON.stringify(effectiveFrame)
                 && displayedLayoutId === Wallpapers.layoutId && displayedRevision === requestedRevision) return;
-        back.framing = requestedFrame;
-        back.source = requestedSource;
+        back.framing = effectiveFrame;
+        back.source = effectiveSource;
         maybeStart();
     }
     function maybeStart() {
         if (!initialized || transitioning || preparing || back.status !== Image.Ready
-                || back.source.toString() !== requestedSource) return;
+                || back.source.toString() !== effectiveSource) return;
         if (Wallpapers.targetOutput === outputName || WidgetEditor.targetOutput === outputName) return;
         transitionLayoutId = Wallpapers.layoutId;
         transitionLayout = JSON.parse(JSON.stringify(WidgetLayouts.current));
@@ -97,7 +100,15 @@ Item {
         Qt.callLater(loadRequested);
     }
     // Wallpaper and layout are committed together; start after both have changed.
-    onRequestedSourceChanged: Qt.callLater(loadRequested)
+    function imageFailed(item) {
+        if (item !== back || item.source.toString() !== effectiveSource) return;
+        console.warn("Wallpaper image could not be loaded:", item.source);
+        if (effectiveSource === Wallpapers.fallback) return;
+        Wallpapers.error = "Обои на " + outputName + " недоступны. Используется нейтральный фон; открой выбор обоев для повтора.";
+        failedSource = requestedSource;
+        Qt.callLater(loadRequested);
+    }
+    onRequestedSourceChanged: { failedSource = ""; Qt.callLater(loadRequested); }
     onRequestedFrameChanged: Qt.callLater(loadRequested)
     onRequestedRevisionChanged: Qt.callLater(loadRequested)
     Component.onCompleted: { initialized = true; loadRequested(); }
@@ -105,7 +116,13 @@ Item {
         target: Wallpapers
         function onReadyChanged(): void { root.loadRequested(); }
         function onLayoutIdChanged(): void { Qt.callLater(root.loadRequested); }
-        function onTargetOutputChanged(): void { root.maybeStart(); }
+        function onTargetOutputChanged(): void {
+            if (Wallpapers.targetOutput === root.outputName && root.failedSource !== "") {
+                root.failedSource = "";
+                root.back.source = "";
+                Qt.callLater(root.loadRequested);
+            } else root.maybeStart();
+        }
     }
     Connections {
         target: WidgetEditor
@@ -124,7 +141,7 @@ Item {
         capture: root.preparing || root.transitioning
         visible: root.firstIsFront && !root.transitioning
         onStatusChanged: {
-            if (status === Image.Error) console.warn("Wallpaper image could not be loaded:", source);
+            if (status === Image.Error) root.imageFailed(first);
             root.maybeStart();
         }
     }
@@ -136,7 +153,7 @@ Item {
         capture: root.preparing || root.transitioning
         visible: !root.firstIsFront && !root.transitioning
         onStatusChanged: {
-            if (status === Image.Error) console.warn("Wallpaper image could not be loaded:", source);
+            if (status === Image.Error) root.imageFailed(second);
             root.maybeStart();
         }
     }

@@ -29,6 +29,9 @@ The process detaches from the panel and disables Quickshell's file watcher. Sour
 edits apply to the next lock; panel reloads do not destroy an active lock. The
 launcher waits for the compositor's `secure` acknowledgement before reporting
 success. Runtime diagnostics are in `$XDG_RUNTIME_DIR/shoji-lock/locker.log`.
+The optional [sleep monitor](../../../docs/sleep-lock.md) supplies one absolute
+monotonic deadline; ordinary manual locking retains its existing timing.
+Read-only IPC status also reports the process PID for stable identity checks.
 
 ## PAM and portability
 

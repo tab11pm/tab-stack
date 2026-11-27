@@ -1,5 +1,40 @@
 # Validation record
 
+## 2026-11-03 optional independent sleep monitor
+
+Host application preparation then preserved the installed direct native
+`sessionLock.locked/secure` getters in IPC status. Quickshell can omit forwarded
+root notifications on lock acquisition. A regression executes the actual status
+expression with stale root state: it failed before the correction and passed
+afterward. Full discovery after this correction: 99 passed, no skips; all twelve
+launcher tests and QML lint also passed. Installed files were still unchanged.
+
+Implemented on `feature/independent-sleep-lock` from main `0dc9d1e`, separately
+from unrelated root-checkout changes. No host installation, logout, reload,
+authentication, locking or suspend was performed.
+
+- Full Python discovery: 98 tests passed without skips, including existing
+  session compatibility, exact optional service lease, installer preview,
+  preservation and guarded rollback, and real Unix peer checks.
+- A throwaway private D-Bus fixture passed actual Unix FD transfer, GLib sleep
+  signals, resume/reacquire and service-disappearance handling. It never contacts
+  host logind. The sandbox-only socket skip was resolved by running outside it.
+- Twelve launcher tests passed, including contended flock and shared deadline
+  budgets. Qt QML lint and offline user-unit verification passed without diagnostics.
+- Read-only host preflight passed against the unchanged running five-service
+  session, available optional Python dependencies, independent PAM support files
+  and logind's 15-second delay budget. It takes no inhibitor and launches no QML.
+- A harmless native transient-scope probe completed the launcher while its
+  detached test child remained alive. This verifies the process boundary used
+  to preserve the locker outside the monitor's kill cgroup; no locker was used.
+- Independent source review found no Critical/Important issues.
+
+The installed PyGObject emits a GLib compatibility deprecation warning during
+the private-bus test. Actual password authentication, secure sleep/resume,
+service stop with a real secure locker, hardware, cold boot and clean Arch
+installation remain separate acceptance tasks. Delay inhibitors do not veto
+sleep after timeout. See [deployment and recovery](sleep-lock.md).
+
 ## 2026-10-28 remaining system synchronization
 
 Prepared from fetched main `617d49b`, retaining already published desktop features

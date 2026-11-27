@@ -92,6 +92,10 @@ Item {
             Qt.quit();
         }
     }
+    // Per-output wallpapers chosen in Settings → Блокировка, resolved by launch.py.
+    readonly property var lockBackgrounds: {
+        try { return JSON.parse(Quickshell.env("SHOJI_LOCK_BACKGROUNDS") || "{}") || {}; } catch (error) { return {}; }
+    }
     WlSessionLock {
         id: sessionLock
         onSecureStateChanged: {
@@ -103,7 +107,7 @@ Item {
             LockView {
                 anchors.fill: parent
                 userName: root.userName
-                backgroundUrl: Quickshell.env("SHOJI_LOCK_BACKGROUND")
+                backgroundUrl: root.lockBackgrounds[surface.screen ? surface.screen.name : ""] || Quickshell.env("SHOJI_LOCK_BACKGROUND")
                 busy: root.busy
                 errorMessage: root.errorMessage
                 clearSerial: root.clearSerial
@@ -174,6 +178,6 @@ Item {
     IpcHandler {
         target: "session"
         // No unlock or password API is exposed over IPC.
-        function status(): string { return JSON.stringify({ locked: root.locked, secure: root.secure }); }
+        function status(): string { return JSON.stringify({ locked: sessionLock.locked, secure: sessionLock.secure, pid: Quickshell.processId }); }
     }
 }

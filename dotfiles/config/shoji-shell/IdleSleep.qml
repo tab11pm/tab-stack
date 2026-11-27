@@ -82,6 +82,19 @@ Singleton {
         respectInhibitors: true
         onIsIdleChanged: { if (isIdle) root.sleepIfIdle(); }
     }
+    // Idle lock from Settings → Блокировка; 0 minutes keeps it off.
+    IdleMonitor {
+        enabled: SystemSettings.loaded && SystemSettings.lockMinutes > 0 && !root.viewing
+        timeout: Math.max(1, SystemSettings.lockMinutes) * 60
+        respectInhibitors: true
+        onIsIdleChanged: { if (isIdle && !root.busy && !idleLock.running) idleLock.running = true; }
+    }
+    Process {
+        id: idleLock
+        command: ["python3", decodeURIComponent(Qt.resolvedUrl("lock/launch.py").toString().replace("file://", ""))]
+        stderr: StdioCollector { id: idleLockDiagnostics; waitForEnd: true }
+        onExited: exitCode => { if (exitCode !== 0) root.error = "Не удалось заблокировать экран. " + idleLockDiagnostics.text.trim(); }
+    }
     Process {
         id: lock
         command: ["python3", decodeURIComponent(Qt.resolvedUrl("lock/launch.py").toString().replace("file://", ""))]

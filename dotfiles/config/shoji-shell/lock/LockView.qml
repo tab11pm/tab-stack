@@ -4,6 +4,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Quickshell.Widgets
 import ".." as Desktop
 import "../NightLightSchedule.js" as NightSchedule
 
@@ -32,9 +33,9 @@ Rectangle {
     function clearPassword() { password.clear(); passwordEdited(""); }
     onPasswordTextChanged: syncPassword()
     onInputEnabledChanged: { if (inputEnabled) Qt.callLater(focusPassword); }
-    onBusyChanged: { if (!busy) Qt.callLater(focusPassword); }
+    onBusyChanged: { revealed = false; if (!busy) Qt.callLater(focusPassword); }
     onClearSerialChanged: password.clear()
-    Component.onCompleted: { syncPassword(); Qt.callLater(focusPassword); }
+    Component.onCompleted: { appearance = 1; syncPassword(); Qt.callLater(focusPassword); }
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
 
@@ -65,84 +66,176 @@ Rectangle {
         asynchronous: true
         sourceSize: Qt.size(root.width, root.height)
     }
-    Rectangle { anchors.fill: parent; color: "#bc11111b" }
+    Rectangle { anchors.fill: parent; color: "#b31e1e2e" }
     MouseArea {
         anchors.fill: parent
         onClicked: root.focusPassword()
     }
 
-    Column {
-        anchors { top: parent.top; topMargin: Math.max(24, root.height * 0.12); horizontalCenter: parent.horizontalCenter }
-        spacing: 0
-        visible: root.height >= 520
-        Desktop.UiText {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: Qt.formatDateTime(clock.date, "hh:mm")
-            font.pixelSize: Math.min(96, root.width * 0.13)
-            font.weight: Font.Light
-            font.letterSpacing: -3
+    // Presentation adapted from kisa-stack's LockFace.qml; input and PAM stay in SessionLock.
+    property real appearance: root.preview || Desktop.Theme.reducedMotion ? 1 : 0
+    Behavior on appearance { NumberAnimation { duration: Desktop.Theme.duration(220); easing.type: Easing.OutCubic } }
+    property bool revealed: false
+    property string layoutOptions: "grp:alt_shift_toggle"
+    readonly property string layoutShortcut: layoutOptions === "grp:ctrl_shift_toggle" ? "Ctrl+Shift"
+        : layoutOptions === "grp:caps_toggle" ? "Caps Lock" : "Alt+Shift"
+    FileView {
+        path: Desktop.Settings.configHome + "/shoji-shell/system-settings.json"
+        preload: true; printErrors: false
+        onLoaded: {
+            try { root.layoutOptions = ((JSON.parse(text()).values || {}).keyboard || {}).options || "grp:alt_shift_toggle"; }
+            catch (failure) { root.layoutOptions = "grp:alt_shift_toggle"; }
         }
-        Desktop.UiText {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: clock.date.toLocaleDateString(Qt.locale("ru_RU"), "dddd, d MMMM")
-            color: Desktop.Theme.muted
-            font.pixelSize: 16
+    }
+    property url avatarUrl: ""
+    Process {
+        running: true
+        command: ["python3", decodeURIComponent(Qt.resolvedUrl("../system-profile.py").toString().replace("file://", ""))]
+        stdout: SplitParser {
+            onRead: data => {
+                try {
+                    const profile = JSON.parse(data);
+                    if (typeof profile.avatar === "string" && profile.avatar.startsWith("file:///")) root.avatarUrl = profile.avatar;
+                } catch (error) { console.warn("Could not read system profile"); }
+            }
         }
     }
 
     ColumnLayout {
-        id: form
-        anchors.horizontalCenter: parent.horizontalCenter
-        y: Math.max(20, Math.min(root.height - height - 60, root.height * 0.52 - height * 0.25))
-        width: Math.min(360, Math.max(180, root.width - 48))
-        spacing: 16
-        Rectangle {
-            Layout.alignment: Qt.AlignHCenter
-            implicitWidth: 64; implicitHeight: 64; radius: 22
-            color: Desktop.Theme.raised
-            border.width: 1; border.color: Desktop.Theme.line
-            Image {
-                anchors.centerIn: parent
-                width: 28; height: 28
-                source: Qt.resolvedUrl("../icons/home-lock.svg")
-            }
+        id: clockColumn
+        // Narrow outputs drop the clock below the layout badge in the top-right corner.
+        anchors { top: parent.top; topMargin: root.width < 560 ? 90 : 48; left: parent.left; right: parent.right; leftMargin: 24; rightMargin: 24 }
+        spacing: 12
+        visible: root.height >= 520
+        opacity: root.appearance
+        Desktop.UiText {
+            Layout.fillWidth: true
+            text: Qt.formatDateTime(clock.date, "hh:mm")
+            font.pixelSize: 68
+            font.weight: Font.Light
+            horizontalAlignment: Text.AlignHCenter
         }
         Desktop.UiText {
             Layout.fillWidth: true
-            text: root.userName
+            text: clock.date.toLocaleDateString(Qt.locale("ru_RU"), "dddd, d MMMM")
+            color: Desktop.Theme.muted
+            font.pixelSize: 15
             horizontalAlignment: Text.AlignHCenter
-            font.pixelSize: 23; font.weight: Font.DemiBold
+        }
+    }
+    Desktop.WidgetSurface {
+        anchors { top: parent.top; right: parent.right; margins: 24 }
+        visible: root.layoutName !== ""
+        opacity: root.appearance
+        width: layoutBadge.implicitWidth + 28
+        height: 42
+        Accessible.role: Accessible.StaticText
+        Accessible.name: "Раскладка: " + root.layoutName + ". Переключение " + root.layoutShortcut
+        RowLayout {
+            id: layoutBadge
+            anchors.centerIn: parent
+            spacing: 10
+            Desktop.PanelIcon { name: "keyboard"; tint: Desktop.Theme.muted }
+            Desktop.UiText { text: root.layoutName; font.pixelSize: 16; font.weight: Font.DemiBold }
+            Desktop.UiText { text: root.layoutShortcut; color: Desktop.Theme.muted; font.pixelSize: 11 }
+        }
+    }
+
+    Item {
+        id: card
+        anchors.horizontalCenter: parent.horizontalCenter
+        y: Math.max(clockColumn.visible ? clockColumn.y + clockColumn.height + 24 : 20, (root.height - height) / 2)
+        width: Math.min(420, Math.max(220, root.width - 48))
+        height: avatar.height + 20 + form.implicitHeight + 32
+        opacity: root.appearance
+        Desktop.WidgetSurface { anchors { fill: parent; topMargin: avatar.height / 2 } }
+        ClippingRectangle {
+            id: avatar
+            anchors { top: parent.top; horizontalCenter: parent.horizontalCenter }
+            width: 96; height: 96
+            radius: Desktop.Theme.surfaceRadius
+            color: Desktop.Theme.raised
+            border.width: 1
+            border.color: Qt.rgba(Desktop.Theme.ink.r, Desktop.Theme.ink.g, Desktop.Theme.ink.b, 0.10)
+            Image {
+                id: portrait
+                anchors.fill: parent
+                source: root.avatarUrl
+                sourceSize: Qt.size(192, 192)
+                asynchronous: true
+                fillMode: Image.PreserveAspectCrop
+            }
+            Desktop.UiText {
+                anchors.centerIn: parent
+                visible: portrait.status !== Image.Ready
+                text: root.userName.slice(0, 1).toUpperCase()
+                font.pixelSize: 32; font.weight: Font.DemiBold
+                color: Desktop.Theme.accent
+            }
+            Accessible.role: Accessible.Graphic
+            Accessible.name: "Аватар: " + root.userName
         }
         ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 7
-            Desktop.UiText { text: "Пароль пользователя"; font.pixelSize: 12; color: Desktop.Theme.muted }
+            id: form
+            anchors { top: avatar.bottom; topMargin: 20; left: parent.left; right: parent.right; leftMargin: 32; rightMargin: 32 }
+            spacing: 12
+            Desktop.UiText {
+                Layout.fillWidth: true
+                text: root.userName
+                font.pixelSize: 15
+                horizontalAlignment: Text.AlignHCenter
+            }
             TextField {
                 id: password
                 objectName: "lockPasswordInput"
                 Layout.fillWidth: true
-                implicitHeight: 52
+                implicitHeight: 60
                 enabled: root.inputEnabled && !root.busy
-                echoMode: TextInput.Password
+                echoMode: root.revealed ? TextInput.Normal : TextInput.Password
                 passwordMaskDelay: 0
-                placeholderText: "Введите пароль"
+                passwordCharacter: "●"
                 font.family: Desktop.Theme.font
                 font.pixelSize: 16
+                font.letterSpacing: root.revealed ? 0 : 2
                 color: Desktop.Theme.ink
-                placeholderTextColor: Desktop.Theme.muted
                 selectionColor: Desktop.Theme.accent
                 selectedTextColor: Desktop.Theme.surface
-                leftPadding: 16; rightPadding: 16
+                leftPadding: 16; rightPadding: 60; topPadding: 24; bottomPadding: 8
                 selectByMouse: true
                 inputMethodHints: Qt.ImhHiddenText | Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
                 Accessible.name: "Пароль пользователя " + root.userName
                 background: Rectangle {
-                    radius: 14
-                    color: Desktop.Theme.surface
-                    border.width: password.activeFocus ? 2 : 1
+                    radius: Desktop.Theme.surfaceRadius
+                    color: password.activeFocus ? Desktop.Theme.raised : Qt.rgba(Desktop.Theme.ink.r, Desktop.Theme.ink.g, Desktop.Theme.ink.b, 0.05)
+                    border.width: 1
                     border.color: root.errorMessage ? Desktop.Theme.danger
                         : password.activeFocus ? Desktop.Theme.accent : Desktop.Theme.line
+                    Behavior on color { ColorAnimation { duration: Desktop.Theme.duration(360) } }
+                    Behavior on border.color { ColorAnimation { duration: Desktop.Theme.duration(220) } }
                 }
+                Desktop.UiText {
+                    readonly property bool raised: password.length > 0 || password.activeFocus
+                    x: 16; y: raised ? 9 : 20
+                    text: "Пароль"
+                    font.pixelSize: 16
+                    color: Desktop.Theme.muted
+                    transformOrigin: Item.TopLeft
+                    scale: raised ? 0.8 : 1
+                    Behavior on y { NumberAnimation { duration: Desktop.Theme.duration(460); easing.type: Easing.BezierSpline; easing.bezierCurve: [0.4, 0, 0.2, 1, 1, 1] } }
+                    Behavior on scale { NumberAnimation { duration: Desktop.Theme.duration(460); easing.type: Easing.BezierSpline; easing.bezierCurve: [0.4, 0, 0.2, 1, 1, 1] } }
+                }
+                Desktop.ActionButton {
+                    anchors { right: parent.right; verticalCenter: parent.verticalCenter; rightMargin: 5 }
+                    implicitWidth: 44; implicitHeight: 44; padding: 6
+                    focusPolicy: Qt.NoFocus
+                    enabled: password.enabled
+                    hint: root.revealed ? "Скрыть пароль" : "Показать пароль на этом мониторе"
+                    Accessible.checkable: true
+                    Accessible.checked: root.revealed
+                    contentItem: Desktop.MotionIcon { kind: "eyes"; active: root.revealed; tint: Desktop.Theme.ink }
+                    onClicked: { root.revealed = !root.revealed; root.focusPassword(); }
+                }
+                onActiveFocusChanged: { if (!activeFocus) root.revealed = false; }
                 onAccepted: {
                     const value = text;
                     root.clearPassword();
@@ -158,47 +251,30 @@ Rectangle {
                         root.capsLock = (event.text === event.text.toUpperCase()) !== !!(event.modifiers & Qt.ShiftModifier);
                 }
             }
-            RowLayout {
+            Desktop.UiText {
                 Layout.fillWidth: true
-                Desktop.UiText {
-                    Layout.fillWidth: true
-                    text: root.capsLock ? "Caps Lock включён" : ""
-                    color: Desktop.Theme.danger; font.pixelSize: 11
-                }
-                Desktop.UiText { text: root.layoutName; color: Desktop.Theme.muted; font.pixelSize: 11 }
-            }
-        }
-        Desktop.ActionButton {
-            id: unlockButton
-            Layout.fillWidth: true
-            implicitHeight: 46
-            highlighted: true
-            text: root.busy ? "Проверяем пароль…" : "Разблокировать"
-            enabled: root.inputEnabled && !root.busy
-            contentItem: Text {
-                text: unlockButton.text
-                color: Desktop.Theme.surface
-                font.family: Desktop.Theme.font
-                font.pixelSize: 13; font.weight: Font.DemiBold
+                Layout.minimumHeight: 20
+                text: root.errorMessage || (root.busy ? "Проверка пароля…" : root.capsLock ? "Caps Lock включён" : "")
+                color: root.errorMessage || root.capsLock ? Desktop.Theme.danger : Desktop.Theme.muted
+                font.pixelSize: 12
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
+                wrapMode: Text.Wrap
+                elide: Text.ElideNone
+                Accessible.role: Accessible.AlertMessage
             }
-            onClicked: {
-                const value = password.text;
-                root.clearPassword();
-                root.submitted(value);
+            Desktop.ActionButton {
+                Layout.fillWidth: true
+                text: root.busy ? "Проверка…" : "Разблокировать"
+                highlighted: true
+                focusPolicy: Qt.NoFocus
+                enabled: root.inputEnabled && !root.busy && password.length > 0
+                onClicked: {
+                    const value = password.text;
+                    root.clearPassword();
+                    root.submitted(value);
+                }
             }
-        }
-        Desktop.UiText {
-            Layout.fillWidth: true
-            Layout.minimumHeight: 34
-            text: root.errorMessage
-            wrapMode: Text.WordWrap
-            elide: Text.ElideNone
-            horizontalAlignment: Text.AlignHCenter
-            color: Desktop.Theme.danger
-            font.pixelSize: 12
-            Accessible.role: Accessible.AlertMessage
         }
     }
     Desktop.UiText {

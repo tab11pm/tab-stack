@@ -27,6 +27,8 @@ import {
 import type { CompositionRenderable, ManagedWindowRect } from "shoji_wm/types";
 import { createIpcServer } from "shoji_wm/ipc";
 import { registerMonitors } from "./monitors";
+import { registerSystemSettings } from "./system-settings";
+import { registerNotificationPolicy } from "./notification-policy";
 import { isMissingShortcutFile, parseShortcutSettings, resolveShortcuts, type ShortcutDefinition } from "./shortcut-model";
 import {
   HybridWindowManager,
@@ -154,6 +156,7 @@ COMPOSITOR.onEnable((event) => {
 //   dock.proximity           { monitor: string, inside: bool }    (broadcast)
 // ---------------------------------------------------------------------------
 const WORKSPACE_IPC = createIpcServer();
+const notificationsAllowed = registerNotificationPolicy(WORKSPACE_IPC);
 registerCursorFxIpc(WORKSPACE_IPC);
 registerScreenShaderIpc(WORKSPACE_IPC, (name) => {
   const output = COMPOSITOR.output.current[name];
@@ -413,7 +416,8 @@ COMPOSITOR.process.service("dock", {
 });
 
 const SHORTCUT_LABELS: Record<string, [string, string]> = {
-  "screenshot-region": ["Снимок области", "ЗАПУСК И СИСТЕМА"],
+  "screenshot-region": ["Выбор скриншота", "ЗАПУСК И СИСТЕМА"],
+  "screenshot-region-mouse": ["Снимок области", "ЗАПУСК И СИСТЕМА"],
   "screenshot-all": ["Снимок всего экрана", "ЗАПУСК И СИСТЕМА"],
   terminal: ["Терминал", "ЗАПУСК И СИСТЕМА"],
   browser: ["Chromium", "ЗАПУСК И СИСТЕМА"],
@@ -424,6 +428,7 @@ const SHORTCUT_LABELS: Record<string, [string, string]> = {
   launcher: ["Запуск приложений", "ЗАПУСК И СИСТЕМА"],
   shortcuts: ["Горячие клавиши", "ЗАПУСК И СИСТЕМА"],
   "shortcut-manager": ["Настройка горячих клавиш", "ЗАПУСК И СИСТЕМА"],
+  "system-settings": ["Системные настройки", "ЗАПУСК И СИСТЕМА"],
   "lock-session": ["Заблокировать экран", "ЗАПУСК И СИСТЕМА"],
   "wallpaper-picker": ["Обои и виджеты", "ЗАПУСК И СИСТЕМА"],
   "shader-picker": ["Эффекты экрана", "ЗАПУСК И СИСТЕМА"],
@@ -462,7 +467,26 @@ function defineShortcut(id: string, shortcut: string, handler: () => void): void
   shortcutDefinitions.push({ id, shortcut, handler, title, category });
 }
 
-defineShortcut("screenshot-region", "Super+Shift+S", () => {
+function toggleRegionScreenshot() {
+  const focused = HYBRID_WINDOW_MANAGER.listWindows().find(window => window.isFocused());
+  let geometry = "";
+  if (focused) {
+    const rect = focused.state[WINDOW_STATE_RECT]();
+    const x = read(rect.x);
+    const y = read(rect.y) + focused.state[WINDOW_STATE_WORKSPACE_OFFSET_Y]();
+    const left = Math.floor(x), top = Math.floor(y);
+    const width = Math.ceil(x + read(rect.width)) - left;
+    const height = Math.ceil(y + read(rect.height)) - top;
+    if (width > 0 && height > 0) geometry = `${left},${top} ${width}x${height}`;
+  }
+  COMPOSITOR.process.spawn({
+    command: ["quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
+      "call", "screenshot", "toggle", HYBRID_WINDOW_MANAGER.getCurrentMonitorName(), geometry],
+  });
+}
+defineShortcut("screenshot-region", "Super+Shift+S", toggleRegionScreenshot);
+
+defineShortcut("screenshot-region-mouse", "Super+MouseForward", () => {
   COMPOSITOR.process.spawn({
     command: [`${scripts}/screenshot-region`],
   });
@@ -519,6 +543,13 @@ defineShortcut("shortcuts", "Super+K", () => {
     "call", "shortcuts", "toggle", HYBRID_WINDOW_MANAGER.getCurrentMonitorName(),
   ] });
 });
+defineShortcut("system-settings", "Super+I", () => {
+  COMPOSITOR.process.spawn({ command: [
+    "quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
+    "call", "settings", "toggle", settingsOutput(),
+  ] });
+});
+
 defineShortcut("shortcut-manager", "Super+Shift+K", () => {
   COMPOSITOR.process.spawn({ command: [
     "quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
@@ -670,30 +701,8 @@ WORKSPACE_IPC.handle("shortcuts.get", () => configuredShortcuts.rows.map(({ hand
 
 registerMonitors(WORKSPACE_IPC);
 
-COMPOSITOR.input.configure((input, _context) => {
-  input.global = {
-    touchpad: {
-      tapToClick: true,
-      naturalScroll: true,
-      scrollMethod: "twoFinger",
-      disableWhileTyping: true,
-      scrollFactor: 0.3,
-    },
-    pointer: {
-      pointerAccel: 0.0,
-      accelProfile: "flat",
-      motionSpace: "logical",
-    },
-    keyboard: {
-      layout: "us,ru",
-      variant: ",ruintl_ru",
-      options: "grp:alt_shift_toggle",
-      repeatRate: 60,
-      repeatDelay: 250,
-    },
-  };
-
-});
+// Keyboard, pointer and touchpad come from the settings drawer (Super+I); defaults match the old inline config.
+const settingsOutput = registerSystemSettings(WORKSPACE_IPC, () => HYBRID_WINDOW_MANAGER.getCurrentMonitorName());
 
 HYBRID_WINDOW_MANAGER.configureWorkspaceGestureSpeed({
   workspaceScrollFactor: 1.5,
@@ -766,6 +775,7 @@ COMPOSITOR.effect.layer = (layer) => {
     return { ...transition, inFront: monitorPortalEffect(layer) };
   }
   if (namespace === "shoji-shell" || namespace === "shoji-dock" || namespace === "shoji-shader-picker"
+      || namespace === "shoji-screenshot-picker"
       || namespace === "no_blur" || namespace === "shoji-water"
       || namespace === "linux-wallpaperengine") {
     return {};
@@ -950,6 +960,7 @@ COMPOSITOR.event.onWindowFullscreenRequest((event) => {
 });
 
 COMPOSITOR.event.onWindowActivateRequest((event) => {
+  if (isSteamNotificationWindow(event.window) && !notificationsAllowed(event.window.appId())) return;
   HYBRID_WINDOW_MANAGER.onWindowActivateRequest(event);
   scheduleWorkspaceBroadcast();
 });
@@ -999,8 +1010,9 @@ COMPOSITOR.window.composition = (window: WaylandWindow) => {
 
   const zIndex = computed(() => compositorWindowZIndex(window));
   const minimizeVisualIdle = window.state[WINDOW_STATE_MINIMIZE_VISUAL_IDLE];
+  const notificationBlocked = computed(() => isSteamNotificationWindow(window) && !notificationsAllowed(window.appId()));
   const inactive = computed(
-    () => (minimizeVisualIdle() && !windowWaveIsHiding(window))
+    () => notificationBlocked() || (minimizeVisualIdle() && !windowWaveIsHiding(window))
       || (!workspaceVisible() && !tileDragging()),
   );
   const interactive = computed(
@@ -1124,7 +1136,7 @@ COMPOSITOR.window.composition = (window: WaylandWindow) => {
         rect={managedRect}
         zIndex={zIndex}
         visibleOutputs={window.state[WINDOW_STATE_VISIBLE_OUTPUTS]}
-        opacity={workspaceOpacity}
+        opacity={computed(() => notificationBlocked() ? 0 : workspaceOpacity())}
         forceRectSize={false}
         tiled={false}
         idle={inactive}

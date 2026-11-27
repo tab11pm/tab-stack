@@ -7,6 +7,9 @@ user's autologin, PAM, suspend/lock policy, boot configuration, or packages.
 
 The wrapper owns one compositor child and `tab-stack-session.target`.
 The target owns Elephant and the main/GTK/WLR/ShojiWM portal services.
+The separately installed [sleep-lock component](sleep-lock.md) adds one exact,
+reviewed target drop-in and a sixth owned service. Its Type=notify readiness and
+StatusText are checked; default session installation keeps the five-service lease.
 ShojiWM continues to supervise the panel and polkit agent. Configuration reload
 is not logout. No `graphical-session.target` or Omarchy target is started by this
 wrapper; audio, keyring, default.target and other users' managers are outside

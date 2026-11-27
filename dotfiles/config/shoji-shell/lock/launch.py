@@ -3,6 +3,7 @@
 import argparse
 import fcntl
 import json
+import math
 import os
 from pathlib import Path
 import shutil
@@ -15,6 +16,9 @@ from urllib.parse import unquote, urlparse
 
 SOURCE = Path(__file__).resolve().parent
 PAM_DIRECTORY = Path("/etc/pam.d")
+# Same binary as start-shell: the shell module needs the notification-policy patch.
+_PATCHED = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "shoji-shell/quickshell/bin/quickshell"
+QUICKSHELL = os.environ.get("SHOJI_QUICKSHELL") or (str(_PATCHED) if os.access(_PATCHED, os.X_OK) else "quickshell")
 
 
 def private_runtime():
@@ -51,32 +55,64 @@ def pam_configuration(runtime):
     return str(directory), "shoji-lock"
 
 
+def file_uri(value):
+    if not isinstance(value, str):
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme not in ("", "file"):
+        return None
+    path = Path(unquote(parsed.path) if parsed.scheme == "file" else value)
+    return path.as_uri() if path.is_absolute() and path.is_file() else None
+
+
+def read_json(name):
+    try:
+        return json.loads((SOURCE.parent / name).read_text())
+    except (OSError, ValueError):
+        return {}
+
+
 def background_url():
     fallback = (SOURCE.parent / "assets/default-wallpaper.svg").as_uri()
     try:
-        document = json.loads((SOURCE.parent / "wallpapers.json").read_text())
-        outputs = document.get("outputs", {})
+        outputs = read_json("wallpapers.json").get("outputs", {})
         primary = os.environ.get("SHOJI_PRIMARY_OUTPUT", "")
-        candidates = [outputs.get(primary), *outputs.values()]
-        for value in candidates:
-            if not isinstance(value, str):
-                continue
-            parsed = urlparse(value)
-            if parsed.scheme not in ("", "file"):
-                continue
-            path = Path(unquote(parsed.path) if parsed.scheme == "file" else value)
-            if path.is_absolute() and path.is_file():
-                return path.as_uri()
-    except (OSError, ValueError, AttributeError):
+        for value in [outputs.get(primary), *outputs.values()]:
+            if uri := file_uri(value):
+                return uri
+    except AttributeError:
         pass
     return fallback
 
 
-def check(environment):
+def lock_backgrounds():
+    """Per-output lock wallpapers: the drawer's choice, else that output's desktop still."""
+    result = {}
+    try:
+        desktop = read_json("wallpapers.json").get("outputs", {})
+        chosen = read_json("system-settings.json").get("lockWallpapers") or {}
+        for name in {*desktop, *chosen}:
+            if uri := file_uri(chosen.get(name)) or file_uri(desktop.get(name)):
+                result[name] = uri
+    except AttributeError:
+        pass
+    return result
+
+
+def remaining(deadline, maximum):
+    if deadline is None:
+        return maximum
+    value = min(maximum, deadline - time.monotonic())
+    if value <= 0:
+        raise RuntimeError('Locker deadline expired')
+    return value
+
+
+def check(environment, deadline=None):
     checked_env = dict(environment, WAYLAND_DEBUG="1")
     result = subprocess.run(
-        ["quickshell", "--path", str(SOURCE.parent / "lock-check.qml"), "--no-color"],
-        env=checked_env, capture_output=True, text=True, timeout=10,
+        [QUICKSHELL, "--path", str(SOURCE.parent / "lock-check.qml"), "--no-color"],
+        env=checked_env, capture_output=True, text=True, timeout=remaining(deadline, 10),
     )
     output = result.stdout + result.stderr
     if result.returncode or "SHOJI_LOCK_CHECK_OK" not in output:
@@ -87,44 +123,55 @@ def check(environment):
         raise RuntimeError("Текущий композитор не объявляет протокол блокировки Wayland.")
 
 
-def status():
+def status(deadline=None):
     try:
         result = subprocess.run(
-            ["quickshell", "ipc", "--path", str(SOURCE.parent / "lock.qml"), "call", "session", "status"],
-            capture_output=True, text=True, timeout=1,
+            [QUICKSHELL, "ipc", "--path", str(SOURCE.parent / "lock.qml"), "call", "session", "status"],
+            capture_output=True, text=True, timeout=remaining(deadline, 1),
         )
         if result.returncode == 0:
-            return json.loads(result.stdout)
+            value = json.loads(result.stdout)
+            return value if isinstance(value, dict) else None
     except (ValueError, subprocess.TimeoutExpired):
         pass
     return None
 
 
-def start(environment, runtime):
+def start(environment, runtime, deadline=None):
     # Serialise launchers, not the locker. The detached process survives a panel
     # reload; --no-duplicate also protects launches outside this helper.
     with (runtime / "launch.lock").open("a") as launch_lock:
-        fcntl.flock(launch_lock, fcntl.LOCK_EX)
-        existing = status()
+        if deadline is None:
+            fcntl.flock(launch_lock, fcntl.LOCK_EX)
+        else:
+            while True:
+                remaining(deadline, 1)
+                try:
+                    fcntl.flock(launch_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    time.sleep(remaining(deadline, .02))
+        existing = status(deadline)
         if existing and existing.get("secure"):
             return
-        check(environment)
+        check(environment, deadline)
+        remaining(deadline, 1)
         log_path = runtime / "locker.log"
         descriptor = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
         with os.fdopen(descriptor, "a") as log:
             process = subprocess.Popen(
-                ["quickshell", "--no-duplicate", "--path", str(SOURCE.parent / "lock.qml"), "--no-color"],
+                [QUICKSHELL, "--no-duplicate", "--path", str(SOURCE.parent / "lock.qml"), "--no-color"],
                 env=environment, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                 start_new_session=True, close_fds=True,
             )
-        deadline = time.monotonic() + 7
-        while time.monotonic() < deadline:
-            current = status()
+        secure_deadline = min(deadline or float('inf'), time.monotonic() + 7)
+        while time.monotonic() < secure_deadline:
+            current = status(secure_deadline)
             if current and current.get("secure"):
                 return
             if process.poll() is not None:
                 raise RuntimeError("Процесс блокировки завершился. См. " + str(log_path))
-            time.sleep(0.1)
+            time.sleep(min(.1, max(0, secure_deadline - time.monotonic())))
         # Never kill a possibly secure lock: a conformant compositor keeps a
         # failed client's session locked, which needs recovery from another TTY.
         raise RuntimeError("Нет подтверждения блокировки. См. " + str(log_path))
@@ -135,10 +182,16 @@ def main():
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true", help="Check QML, PAM policy and compositor; do not lock")
     mode.add_argument("--preview", action="store_true", help="Open a non-locking preview window")
+    parser.add_argument('--deadline', type=float, help='Absolute monotonic deadline for supervised sleep locking')
     args = parser.parse_args()
-    environment = dict(os.environ, SHOJI_LOCK_BACKGROUND=background_url())
+    if args.deadline is not None:
+        if not math.isfinite(args.deadline) or args.preview or args.check:
+            parser.error('--deadline requires a finite value and ordinary lock mode')
+        remaining(args.deadline, 1)
+    environment = dict(os.environ, SHOJI_LOCK_BACKGROUND=background_url(),
+                       SHOJI_LOCK_BACKGROUNDS=json.dumps(lock_backgrounds()))
     if args.preview:
-        return subprocess.call(["quickshell", "--path", str(SOURCE.parent / "lock-preview.qml")], env=environment)
+        return subprocess.call([QUICKSHELL, "--path", str(SOURCE.parent / "lock-preview.qml")], env=environment)
     runtime = private_runtime()
     directory, service = pam_configuration(runtime)
     environment.update(SHOJI_LOCK_PAM_DIRECTORY=directory, SHOJI_LOCK_PAM_SERVICE=service)
@@ -147,7 +200,7 @@ def main():
         print(f"OK: QML loads; ext-session-lock-v1 available; PAM policy {directory}/{service}.")
         print("Password authentication and actual locking were not attempted.")
         return 0
-    start(environment, runtime)
+    start(environment, runtime, args.deadline)
     return 0
 
 
