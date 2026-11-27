@@ -172,23 +172,7 @@ ColumnLayout {
         }
     }
 
-    ConnectionTile {
-        visible: panel.sectionMode === "all"
-        Layout.fillWidth: true
-        text: "Мониторы"; glyph: "brightness"
-        subtitle: Quickshell.screens.length + " · расположение, частота и масштаб"
-        expanded: panel.section === "monitors"
-        onClicked: panel.section = panel.section === "monitors" ? "" : "monitors"
-    }
-    MonitorSettings {
-        Layout.fillWidth: true
-        visible: panel.sectionMode === "all" && panel.section === "monitors"
-        active: panel.active && visible
-    }
-
     UiText { text: panel.sectionMode === "all" ? "Звук и экран" : "Звук"; visible: panel.sectionMode !== "connections"; color: Theme.muted; font.pixelSize: 11; font.weight: Font.Medium; Layout.topMargin: 4 }
-    NightLightSettings { visible: panel.sectionMode === "all"; Layout.fillWidth: true }
-    IdleSleepSettings { visible: panel.sectionMode === "all"; Layout.fillWidth: true }
     CursorFxSettings { visible: panel.sectionMode === "all"; Layout.fillWidth: true }
     Rectangle {
         visible: panel.sectionMode !== "connections"
@@ -204,6 +188,16 @@ ColumnLayout {
                 visible: panel.sectionMode === "all"
                 Layout.fillWidth: true
                 UiText { text: "Яркость"; color: Theme.muted; font.pixelSize: 11; Layout.fillWidth: true }
+                // Schedule and temperature live in the settings drawer.
+                ActionButton {
+                    icon.source: Qt.resolvedUrl("icons/moon.svg"); icon.width: 14; icon.height: 14
+                    implicitWidth: 28; implicitHeight: 24; padding: 4
+                    highlighted: NightLight.applied
+                    enabled: NightLight.ready && NightLight.loaded
+                    hint: NightLight.applied ? "Выключить ночной режим" : "Включить ночной режим"
+                    Accessible.checkable: true; Accessible.checked: NightLight.applied
+                    onClicked: NightLight.toggle()
+                }
                 ActionButton {
                     translucent: panel.sectionMode !== "all"
                     text: backlight.connector; hint: "Выбрать монитор"

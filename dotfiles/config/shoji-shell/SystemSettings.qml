@@ -10,10 +10,8 @@ Singleton {
     property bool opened: false
     property string targetOutput: ""
     readonly property var targetScreen: Quickshell.screens.find(s => s.name === targetOutput) || null
-    readonly property string edge: {
-        const screens = Quickshell.screens.slice().sort((a, b) => a.x - b.x || a.y - b.y || a.name.localeCompare(b.name));
-        return screens.length < 2 || (screens[0] && screens[0].name === targetOutput) ? "left" : "right";
-    }
+    // Rises from the bottom centre of the target monitor; easier to reach on wide screens.
+    readonly property string edge: "bottom"
     property string page: "displays"
     property var snapshot: ({})
     readonly property var values: snapshot.values || ({})

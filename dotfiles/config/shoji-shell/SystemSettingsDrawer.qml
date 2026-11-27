@@ -48,9 +48,8 @@ PanelWindow {
         Item {
             width: Math.max(1, Math.min(960, inputArea.width - 32))
             height: Math.max(1, Math.min(900, inputArea.height - 128))
-            y: (inputArea.height - height) / 2
-            x: SystemSettings.edge === "left" ? -width * (1 - drawer.reveal)
-                : inputArea.width - width * drawer.reveal
+            x: (inputArea.width - width) / 2
+            y: inputArea.height - height * drawer.reveal
             MouseArea { anchors.fill: parent; enabled: drawer.requested }
             Loader {
                 id: contentLoader

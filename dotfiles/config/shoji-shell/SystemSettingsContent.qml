@@ -88,9 +88,9 @@ FocusScope {
         anchors.fill: parent
         grainAlpha: 0.015
         topLeftRadius: SystemSettings.edge === "left" ? 0 : radius
-        bottomLeftRadius: SystemSettings.edge === "left" ? 0 : radius
+        bottomLeftRadius: SystemSettings.edge === "left" || SystemSettings.edge === "bottom" ? 0 : radius
         topRightRadius: SystemSettings.edge === "right" ? 0 : radius
-        bottomRightRadius: SystemSettings.edge === "right" ? 0 : radius
+        bottomRightRadius: SystemSettings.edge === "right" || SystemSettings.edge === "bottom" ? 0 : radius
         readonly property color backdropColor: Qt.darker(Theme.surface, 1.12)
         color: Qt.rgba(backdropColor.r, backdropColor.g, backdropColor.b, 0.9)
         RowLayout {
@@ -101,7 +101,7 @@ FocusScope {
                 color: Qt.rgba(Theme.ink.r, Theme.ink.g, Theme.ink.b, 0.015)
                 radius: 10
                 topLeftRadius: SystemSettings.edge === "left" ? 0 : radius
-                bottomLeftRadius: SystemSettings.edge === "left" ? 0 : radius
+                bottomLeftRadius: SystemSettings.edge === "left" || SystemSettings.edge === "bottom" ? 0 : radius
                 ColumnLayout {
                     anchors { fill: parent; margins: window.compactNavigation ? 10 : 14 }
                     spacing: 6
