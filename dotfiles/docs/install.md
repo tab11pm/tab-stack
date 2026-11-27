@@ -45,7 +45,7 @@ On a fresh Arch install with working GPU drivers, run steps 1–4 below plus the
 session and SDDM entries in one go, as your desktop user from a TTY:
 
 ```bash
-./dotfiles/scripts/bootstrap-arch.sh            # add --with-sleep-lock, --with-notifications
+./dotfiles/scripts/bootstrap-arch.sh            # add --with-sleep-lock
 ```
 
 It installs `dependencies/arch.txt` and `sddm`, paru (if no AUR helper) and Elephant,
