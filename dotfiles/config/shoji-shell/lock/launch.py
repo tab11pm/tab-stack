@@ -16,6 +16,9 @@ from urllib.parse import unquote, urlparse
 
 SOURCE = Path(__file__).resolve().parent
 PAM_DIRECTORY = Path("/etc/pam.d")
+# Same binary as start-shell: the shell module needs the notification-policy patch.
+_PATCHED = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "shoji-shell/quickshell/bin/quickshell"
+QUICKSHELL = os.environ.get("SHOJI_QUICKSHELL") or (str(_PATCHED) if os.access(_PATCHED, os.X_OK) else "quickshell")
 
 
 def private_runtime():
@@ -108,7 +111,7 @@ def remaining(deadline, maximum):
 def check(environment, deadline=None):
     checked_env = dict(environment, WAYLAND_DEBUG="1")
     result = subprocess.run(
-        ["quickshell", "--path", str(SOURCE.parent / "lock-check.qml"), "--no-color"],
+        [QUICKSHELL, "--path", str(SOURCE.parent / "lock-check.qml"), "--no-color"],
         env=checked_env, capture_output=True, text=True, timeout=remaining(deadline, 10),
     )
     output = result.stdout + result.stderr
@@ -123,7 +126,7 @@ def check(environment, deadline=None):
 def status(deadline=None):
     try:
         result = subprocess.run(
-            ["quickshell", "ipc", "--path", str(SOURCE.parent / "lock.qml"), "call", "session", "status"],
+            [QUICKSHELL, "ipc", "--path", str(SOURCE.parent / "lock.qml"), "call", "session", "status"],
             capture_output=True, text=True, timeout=remaining(deadline, 1),
         )
         if result.returncode == 0:
@@ -157,7 +160,7 @@ def start(environment, runtime, deadline=None):
         descriptor = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
         with os.fdopen(descriptor, "a") as log:
             process = subprocess.Popen(
-                ["quickshell", "--no-duplicate", "--path", str(SOURCE.parent / "lock.qml"), "--no-color"],
+                [QUICKSHELL, "--no-duplicate", "--path", str(SOURCE.parent / "lock.qml"), "--no-color"],
                 env=environment, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                 start_new_session=True, close_fds=True,
             )
@@ -188,7 +191,7 @@ def main():
     environment = dict(os.environ, SHOJI_LOCK_BACKGROUND=background_url(),
                        SHOJI_LOCK_BACKGROUNDS=json.dumps(lock_backgrounds()))
     if args.preview:
-        return subprocess.call(["quickshell", "--path", str(SOURCE.parent / "lock-preview.qml")], env=environment)
+        return subprocess.call([QUICKSHELL, "--path", str(SOURCE.parent / "lock-preview.qml")], env=environment)
     runtime = private_runtime()
     directory, service = pam_configuration(runtime)
     environment.update(SHOJI_LOCK_PAM_DIRECTORY=directory, SHOJI_LOCK_PAM_SERVICE=service)
