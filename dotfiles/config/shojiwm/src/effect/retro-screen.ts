@@ -4,6 +4,7 @@ import {
 } from "shoji_wm";
 import type { IpcServer } from "shoji_wm/ipc";
 import { aquariumOverlayEffect, setAquariumEnabled } from "./aquarium";
+import { bindCursorFxHost, cursorFxOn, cursorFxOverlayChanged, cursorFxStage, stopCursorFx } from "./cursor-fx";
 import { nightColorStage, nightColorState, setNightColor } from "./night-color";
 
 const SHADER = loadShader("./src/effect/retro-screen.frag");
@@ -28,7 +29,9 @@ let nightRequested = false;
 let notify = () => {};
 
 function currentId(): string { return preview ?? selected; }
-function wanted(): boolean { return currentId() !== "none" || nightColorState().enabled; }
+function wanted(): boolean { return currentId() !== "none" || nightColorState().enabled || cursorFxOn(); }
+// The cursor effect rides in this overlay: toggling it rebuilds the pipeline.
+function key(): string { return currentId() + (cursorFxOn() ? "+cursor" : ""); }
 function state() { return { items, selected, preview: currentId(), active: currentId(), previewing: preview !== null, error }; }
 
 function sync(): void {
@@ -37,15 +40,18 @@ function sync(): void {
   setAquariumEnabled(id === "aquarium");
   // Pending openings finish before the next shader can occupy the same slot.
   for (const [output, entry] of active) {
-    if ((!wanted() || entry.id !== id || !COMPOSITOR.output.list.includes(output)) && entry.handle) {
+    if ((!wanted() || entry.id !== key() || !COMPOSITOR.output.list.includes(output)) && entry.handle) {
       active.delete(output);
       entry.handle.dispose();
     }
   }
+  cursorFxOverlayChanged();
   if (!wanted()) return;
   for (const output of COMPOSITOR.output.list) {
     if (active.has(output)) continue;
     void enableScreenShader(output, id).catch(failure => {
+      // A locked session closes every overlay; the cursor effect retries after unlock.
+      if (String(failure).includes("Session unavailable")) return;
       error = "Не удалось показать эффект: " + String(failure);
       if (nightColorState().enabled) {
         nightError = "Не удалось применить ночной фильтр: " + String(failure);
@@ -60,30 +66,36 @@ function sync(): void {
 }
 
 async function enableScreenShader(output: string, id: string): Promise<void> {
-  const entry: { id: string; handle?: OverlayHandle } = { id };
+  const entry: { id: string; handle?: OverlayHandle } = { id: key() };
   active.set(output, entry);
   try {
+    // After CRT distortion so clicks land under the dot, before night colour so it is tinted too.
+    const cursor = cursorFxOn() ? [cursorFxStage(output)] : [];
     const handle = await COMPOSITOR.effect.overlay(output, {
       persistent: true,
       placement: "top",
-      effect: id === "aquarium" ? aquariumOverlayEffect(output) : compileOverlayEffect({
+      effect: id === "aquarium" ? aquariumOverlayEffect(output, cursor) : compileOverlayEffect({
         input: backdropSource(),
         alpha: "preserve",
+        // The lagging cursor keeps moving after the scene stops changing.
+        invalidate: cursor.length ? { kind: "always" } : undefined,
         pipeline: id === "retro"
-          ? [shaderStage(SHADER, { uniforms: { rows: 768, enabled } }), nightColorStage()]
-          : [nightColorStage()],
+          ? [shaderStage(SHADER, { uniforms: { rows: 768, enabled } }), ...cursor, nightColorStage()]
+          : [...cursor, nightColorStage()],
       }),
     });
-    if (active.get(output) !== entry || !wanted() || currentId() !== id || !COMPOSITOR.output.list.includes(output)) {
+    if (active.get(output) !== entry || !wanted() || entry.id !== key() || !COMPOSITOR.output.list.includes(output)) {
       if (active.get(output) === entry) active.delete(output);
       handle.dispose();
       sync();
       return;
     }
     entry.handle = handle;
+    cursorFxOverlayChanged();
     void handle.closed.then(() => {
       if (active.get(output) !== entry) return;
       active.delete(output);
+      cursorFxOverlayChanged();
       // Another top overlay or native cleanup ended this effect; do not fight it.
       if (wanted()) {
         // A replaced top overlay must not repeatedly steal the same slot.
@@ -98,11 +110,25 @@ async function enableScreenShader(output: string, id: string): Promise<void> {
   } catch (error) {
     if (active.get(output) === entry) {
       active.delete(output);
-      if (currentId() === id) throw error;
+      if (entry.id === key()) throw error;
       sync();
     }
   }
 }
+
+bindCursorFxHost({
+  sync,
+  rebuild: () => {
+    for (const [output, entry] of active) {
+      if (!entry.handle) continue;
+      active.delete(output);
+      entry.handle.dispose();
+    }
+    sync();
+  },
+  drawn: output => [...active].some(([name, entry]) =>
+    (output === undefined || name === output) && !!entry.handle && entry.id === key()),
+});
 
 export function stopRetroScreen(): void {
   selected = "none";
@@ -116,6 +142,7 @@ let notifyNight = () => {};
 export function stopScreenEffects(): void {
   nightRequested = false;
   setNightColor(false, nightColorState().temperature);
+  stopCursorFx();
   stopRetroScreen();
 }
 

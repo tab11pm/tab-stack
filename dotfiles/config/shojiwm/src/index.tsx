@@ -416,6 +416,7 @@ const SHORTCUT_LABELS: Record<string, [string, string]> = {
   "screenshot-region": ["Снимок области", "ЗАПУСК И СИСТЕМА"],
   "screenshot-all": ["Снимок всего экрана", "ЗАПУСК И СИСТЕМА"],
   terminal: ["Терминал", "ЗАПУСК И СИСТЕМА"],
+  browser: ["Chromium", "ЗАПУСК И СИСТЕМА"],
   dolphin: ["Файлы", "ЗАПУСК И СИСТЕМА"],
   mute: ["Выключить или включить звук", "ЗВУК И УПРАВЛЕНИЕ"],
   "volume-up": ["Громче", "ЗВУК И УПРАВЛЕНИЕ"],
@@ -447,6 +448,7 @@ const SHORTCUT_LABELS: Record<string, [string, string]> = {
   "workspace-next": ["Следующий рабочий стол", "РАБОЧИЕ СТОЛЫ"],
   fps: ["Показать FPS", "ДИАГНОСТИКА"],
   profile: ["Профилирование", "ДИАГНОСТИКА"],
+  "desktop-voice-dictate": ["Диктовка с колонки", "ЗАПУСК И СИСТЕМА"],
   "activity-toggle": ["Пауза активности", "ЗАПУСК И СИСТЕМА"],
   "widget-layout-editor": ["Редактор виджетов", "ЗАПУСК И СИСТЕМА"],
   "window-switcher-next": ["Следующее окно", "ОКНА"],
@@ -472,6 +474,10 @@ defineShortcut("screenshot-all", "Super+Shift+A", () => {
   });
 });
 
+defineShortcut("desktop-voice-dictate", "Alt+Space", () => {
+  COMPOSITOR.process.spawn({ command: [`${home}/.local/bin/desktop-voice`, "--dictate"] });
+});
+
 defineShortcut("activity-toggle", "Super+Ctrl+T", () => {
   COMPOSITOR.process.spawn({
     command: ["quickshell", "ipc", "--path", `${configHome}/shoji-shell`,
@@ -481,6 +487,10 @@ defineShortcut("activity-toggle", "Super+Ctrl+T", () => {
 
 defineShortcut("terminal", "Super+Return", () => {
   COMPOSITOR.process.spawn({ command: ["ghostty", "--gtk-single-instance=false"], cwd: home });
+});
+
+defineShortcut("browser", "Super+Shift+Return", () => {
+  COMPOSITOR.process.spawn({ command: ["chromium"] });
 });
 
 defineShortcut("dolphin", "Super+E", () => {

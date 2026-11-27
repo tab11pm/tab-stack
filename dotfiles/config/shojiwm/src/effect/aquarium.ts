@@ -90,7 +90,7 @@ export function setAquariumEnabled(value: boolean): void {
   dirtyMist();
 }
 
-export function aquariumOverlayEffect(outputName: string) {
+export function aquariumOverlayEffect(outputName: string, cursor: ReturnType<typeof shaderStage>[] = []) {
   const output = COMPOSITOR.output.current[outputName];
   if (!output?.resolution || output.scale <= 0) throw new Error("Aquarium output disappeared");
   return compileOverlayEffect({
@@ -101,7 +101,7 @@ export function aquariumOverlayEffect(outputName: string) {
       aquarium_slosh: waterMotion(outputName).uniform,
       aquarium_origin: [output.position.x, output.position.y],
       aquarium_extent: [output.resolution.width / output.scale, output.resolution.height / output.scale],
-    } }), nightColorStage()],
+    } }), ...cursor, nightColorStage()],
   });
 }
 

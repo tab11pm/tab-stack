@@ -3,7 +3,9 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import ".." as Desktop
+import "../NightLightSchedule.js" as NightSchedule
 
 Rectangle {
     id: root
@@ -35,6 +37,27 @@ Rectangle {
     Component.onCompleted: { syncPassword(); Qt.callLater(focusPassword); }
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
+
+    // ShojiWM drops its night colour overlay while locked, so the locker tints itself the same way.
+    property var nightConfig: null
+    readonly property bool nightOn: !!nightConfig && NightSchedule.effective(nightConfig, clock.date)
+    FileView {
+        path: Desktop.Settings.configHome + "/shoji-shell/night-light.json"
+        preload: true; printErrors: false
+        onLoaded: { try { root.nightConfig = NightSchedule.normalize(JSON.parse(text())); } catch (failure) { root.nightConfig = null; } }
+    }
+    // Black-body gains from shojiwm/src/effect/night-color.ts, normalized so 6500 K is neutral.
+    function nightGains(kelvin) {
+        const t = kelvin / 100;
+        const green = (99.4708025861 * Math.log(t) - 161.1195681661) / (99.4708025861 * Math.log(65) - 161.1195681661);
+        const blue = (138.5177312231 * Math.log(t - 10) - 305.0447927307) / (138.5177312231 * Math.log(55) - 305.0447927307);
+        return Qt.vector3d(1, Math.min(1, green), Math.min(1, blue));
+    }
+    layer.enabled: nightOn
+    layer.effect: ShaderEffect {
+        property vector3d gains: root.nightGains(root.nightConfig ? root.nightConfig.temperature : 6500)
+        fragmentShader: "../shaders/night-tint.frag.qsb"
+    }
     Image {
         anchors.fill: parent
         source: root.backgroundUrl
@@ -184,4 +207,5 @@ Rectangle {
         color: Desktop.Theme.muted
         font.pixelSize: 11
     }
+    LockCursor { anchors.fill: parent }
 }

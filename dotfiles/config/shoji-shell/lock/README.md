@@ -32,8 +32,8 @@ success. Runtime diagnostics are in `$XDG_RUNTIME_DIR/shoji-lock/locker.log`.
 
 ## PAM and portability
 
-The launcher uses `/etc/pam.d/shoji-lock` when present and never inherits another
-locker's PAM service. On Arch/Manjaro/Omarchy, the bundled `pam/shoji-lock`
+The launcher prefers `/etc/pam.d/shoji-lock`, then `omarchy-lock-password`,
+`swaylock`, or `hyprlock`. On Arch/Manjaro/Omarchy, the bundled `pam/shoji-lock`
 fallback includes the installed `system-auth` and `system-local-login` policies.
 Its private runtime directory links the distro's PAM files so transitive includes
 resolve correctly. No root-owned file is changed.
@@ -56,13 +56,12 @@ to another TTY with Ctrl+Alt+F3 and log in. Save work where possible before endi
 the affected graphical session using `loginctl terminate-session SESSION_ID`.
 Restarting Quickshell is not assumed to recover an orphaned lock.
 
-## Files in tab-stack
+## Move into your fork
 
-The locker is part of `tab11pm/tab-stack` under `dotfiles/config/shoji-shell/`:
-`lock/`, `lock.qml`, `lock-preview.qml`, `lock-check.qml`, `lock-input-test.qml`,
-`LockScreen.qml` and `icons/home-lock.svg`. It integrates through `qmldir`,
-`shell.qml`, `HomeSystemCard.qml` and `shojiwm/src/index.tsx`.
-Keep `Theme.qml`, `UiText.qml`, `ActionButton.qml` and
+Copy `lock/`, `lock.qml`, `lock-preview.qml`, `lock-check.qml`, `lock-input-test.qml`, `LockScreen.qml`,
+`icons/home-lock.svg` and the changes in `qmldir`,
+`shell.qml`, `HomeSystemCard.qml` and `shojiwm/src/index.tsx` into the corresponding
+`dotfiles/config/` paths. Keep `Theme.qml`, `UiText.qml`, `ActionButton.qml` and
 `assets/default-wallpaper.svg` with the shell. No username, credential, private
 wallpaper or absolute home path is embedded in the implementation.
 
