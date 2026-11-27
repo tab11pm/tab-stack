@@ -27,6 +27,8 @@ MUSIC_DIR = Path.home() / "Music"
 AUDIO = (".mp3", ".flac", ".ogg", ".m4a", ".wav", ".opus", ".aac")  # как EXTS в music_server.py
 VOICE_UNIT = "desktop-voice"
 MUSIC = Path(os.environ.get("KOLONKA_DIR") or Path.home() / "Work/kolonka-lite") / "alice-music"
+LIVE_SINK = "kolonka_live"
+LIVE_STATE = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp") / "kolonka-live-sink.json"
 SSH = ["ssh", "-i", str(Path.home() / ".ssh/id_ed25519"), "-p", str(SSH_PORT), "-T",
        "-o", "BatchMode=yes", "-o", "ConnectTimeout=4", "-o", "StrictHostKeyChecking=accept-new"]
 
@@ -108,6 +110,34 @@ def local_duration(folder, name):
         return 0
 
 
+def move_streams(sink):
+    run("pactl", "set-default-sink", sink)
+    for line in run("pactl", "list", "short", "sink-inputs").splitlines():
+        run("pactl", "move-sink-input", line.split()[0], sink)
+
+
+def live_sink_on():
+    """music_server пишет монитор вывода по умолчанию: уводим звук ПК в пустой sink,
+    чтобы он шёл только на колонку, а не ещё и в динамики ноутбука."""
+    if LIVE_STATE.exists():
+        return
+    prev = run("pactl", "get-default-sink").strip()
+    module = run("pactl", "load-module", "module-null-sink", f"sink_name={LIVE_SINK}",
+                 "sink_properties=device.description=Kolonka").strip()
+    LIVE_STATE.write_text(json.dumps({"sink": prev, "module": module}))
+    move_streams(LIVE_SINK)
+
+
+def live_sink_off():
+    try:
+        state = json.loads(LIVE_STATE.read_text())
+    except (OSError, ValueError):
+        return
+    move_streams(state["sink"])
+    run("pactl", "unload-module", state["module"])
+    LIVE_STATE.unlink(missing_ok=True)
+
+
 def status(ip):
     if not ip or not ssh_open(ip):
         ip = find_speaker()
@@ -122,6 +152,10 @@ def status(ip):
             out.update(parse_player(r.stdout))
             if out.get("file") and not out["total"] and "/" not in out["file"]:
                 out["total"] = local_duration(served_dir() or MUSIC_DIR, out["file"])
+    # трансляция кончилась сама (трек из списка, колонка пропала): возвращаем звук в динамики;
+    # 15 с форы — пока play.sh --live запускает поток, колонка ещё не в режиме live
+    if not out.get("live") and LIVE_STATE.exists() and time.time() - LIVE_STATE.stat().st_mtime > 15:
+        live_sink_off()
     return out
 
 
@@ -200,7 +234,11 @@ def ctl(ip, action, arg):
         cmd = [*SSH, f"root@{ip}", f"amixer sset Master {int(arg)}%"]
     else:
         sys.exit("неизвестная команда")
+    if action == "pc-audio":
+        live_sink_on()
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    if action == "stop" or action == "pc-audio" and r.returncode:
+        live_sink_off()
     if r.returncode:
         sys.exit(((r.stderr or r.stdout).strip().splitlines() or ["ошибка"])[-1])
 
