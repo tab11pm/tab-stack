@@ -17,13 +17,16 @@ Item {
     property real volumeBeforeMute: 50
     property bool showTracks: false
     property var tracks: []
+    property var albums: []
+    property string album: ""         // выбранная в списке подпапка ~/Music, "" — сам ~/Music
+    property string playingAlbum: ""  // альбом последнего запущенного из списка трека
     readonly property bool online: speaker.state === "online"
     readonly property bool playing: online && !!speaker.playing
     readonly property bool paused: online && !!speaker.paused
     readonly property bool live: online && !!speaker.live
     readonly property bool voice: !!speaker.voice
     readonly property string title: speaker.title || (playing || paused ? "Без названия" : "Ничего не играет")
-    readonly property string subtitle: speaker.artist || (online ? "Мой плейлист · ~/Music" : "")
+    readonly property string subtitle: speaker.artist || (online ? "Мой плейлист · ~/Music" + (playingAlbum ? "/" + playingAlbum : "") : "")
     readonly property string headline: online ? "Подключена · " + speaker.ip
         : speaker.state === "nossh" ? speaker.ip + " · SSH :" + speaker.port + " не отвечает"
         : speaker.state === "missing" ? "Не найдена в сети" : "Ищу колонку…"
@@ -80,8 +83,15 @@ Item {
 
     Process {
         id: lister
-        command: ["python3", root.helper, "tracks"]
-        stdout: SplitParser { onRead: data => { try { root.tracks = JSON.parse(data); } catch (error) { root.tracks = []; } } }
+        command: ["python3", root.helper, "tracks", root.album]
+        stdout: SplitParser {
+            onRead: data => {
+                try {
+                    const list = JSON.parse(data);
+                    root.albums = list.albums; root.album = list.album; root.tracks = list.tracks;
+                } catch (error) { root.tracks = []; }
+            }
+        }
     }
 
     Process {
@@ -333,6 +343,25 @@ Item {
                     "-i", Quickshell.env("HOME") + "/.ssh/id_ed25519", "root@" + root.speaker.ip])
             }
         }
+        // Albums: subfolders of ~/Music; the first chip is ~/Music itself.
+        ListView {
+            visible: root.showTracks && root.albums.length > 0
+            Layout.fillWidth: true; Layout.preferredHeight: 30
+            orientation: ListView.Horizontal; clip: true; spacing: 6
+            model: [""].concat(root.albums)
+            delegate: Rectangle {
+                id: chip
+                required property string modelData
+                readonly property bool active: modelData === root.album
+                implicitWidth: chipText.implicitWidth + 24; height: 30; radius: 15
+                color: active ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.22) : chipArea.containsMouse ? Theme.hover : Theme.raised
+                border.width: 1
+                border.color: active ? Theme.accent : "transparent"
+                UiText { id: chipText; anchors.centerIn: parent; text: chip.modelData || "~/Music"; font.pixelSize: 12; color: chip.active ? Theme.accent : Theme.ink }
+                MouseArea { id: chipArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.album = chip.modelData; lister.running = true; } }
+                Accessible.role: Accessible.Button; Accessible.name: "Альбом " + (modelData || "~/Music")
+            }
+        }
         ListView {
             id: trackList
             visible: root.showTracks
@@ -352,7 +381,7 @@ Item {
                     UiText { text: row.current ? "▶" : String(row.index + 1); Layout.preferredWidth: 22; font.pixelSize: 11; color: row.current ? Theme.accent : Theme.muted }
                     UiText { Layout.fillWidth: true; text: row.modelData.replace(/\.\w{2,4}$/, ""); font.pixelSize: 12; color: row.current ? Theme.accent : Theme.ink }
                 }
-                MouseArea { id: rowArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.act("track", row.modelData) }
+                MouseArea { id: rowArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { root.playingAlbum = root.album; root.act("track", (root.album ? root.album + "/" : "") + row.modelData); } }
                 Accessible.role: Accessible.Button; Accessible.name: "Играть " + modelData
             }
         }
