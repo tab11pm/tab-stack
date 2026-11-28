@@ -95,7 +95,8 @@ only when you choose a profile. Missing service/access errors are shown locally.
 The Yandex Station widget (`Колонка Яндекс`, widget editor) finds the speaker on the LAN by
 MAC (ARP, then a /24 ping sweep) and polls its player over SSH `:2222` every 4 s. It shows the
 track, progress and state, with play/pause, previous/next, stop, shuffle/repeat (`mpc`), a track
-list from `~/Music`, a volume slider with mute (`amixer sset Master`), a button that streams PC
+list from `~/Music` with albums (its subfolders; starting a track from another album restarts
+`music_server.py` with that folder as `MUSIC_DIR`), a volume slider with mute (`amixer sset Master`), a button that streams PC
 audio to the speaker (`play.sh --live`, needs `kolonka-live-audio.patch` applied to `alice-music`;
 several seconds of delay), a voice-helper (`desktop-voice` user unit) toggle and an SSH terminal.
 `play.sh`/`stop.sh` come from `$KOLONKA_DIR/alice-music` (default `~/Work/kolonka-lite`).

@@ -3,7 +3,7 @@
 
   kolonka-widget.py status [ip]      — одна JSON-строка: состояние колонки и плеера
   kolonka-widget.py ctl ip action [arg] — команда плееру/голосу
-  kolonka-widget.py tracks            — JSON-список файлов из ~/Music
+  kolonka-widget.py tracks [альбом]  — JSON: альбомы (подпапки ~/Music) и файлы выбранного альбома
 """
 import functools
 import ipaddress
@@ -100,11 +100,11 @@ def parse_player(text):
 
 
 @functools.lru_cache(maxsize=None)
-def local_duration(name):
+def local_duration(folder, name):
     """mpd не знает длительность файлов, которые читает по HTTP без Range; берём её у файла на ПК."""
     try:
         out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
-                              str(MUSIC_DIR / name)], capture_output=True, text=True, timeout=5).stdout
+                              str(folder / name)], capture_output=True, text=True, timeout=5).stdout
         return int(float(out))
     except (ValueError, OSError, subprocess.TimeoutExpired):
         return 0
@@ -151,7 +151,7 @@ def status(ip):
                                capture_output=True, text=True, timeout=10)
             out.update(parse_player(r.stdout))
             if out.get("file") and not out["total"] and "/" not in out["file"]:
-                out["total"] = local_duration(out["file"])
+                out["total"] = local_duration(served_dir() or MUSIC_DIR, out["file"])
     # трансляция кончилась сама (трек из списка, колонка пропала): возвращаем звук в динамики;
     # 15 с форы — пока play.sh --live запускает поток, колонка ещё не в режиме live
     if not out.get("live") and LIVE_STATE.exists() and time.time() - LIVE_STATE.stat().st_mtime > 15:
@@ -159,24 +159,48 @@ def status(ip):
     return out
 
 
-def track_names():
+def album_names():
+    # альбом — подпапка ~/Music (один уровень), "" — сам ~/Music
+    return sorted(p.name for p in MUSIC_DIR.iterdir() if p.is_dir() and not p.name.startswith(".")) if MUSIC_DIR.is_dir() else []
+
+
+def track_names(album=""):
+    folder = MUSIC_DIR / album
     # порядок как у playlist() в music_server.py: sorted по имени
-    return sorted(p.name for p in MUSIC_DIR.iterdir() if p.suffix.lower() in AUDIO) if MUSIC_DIR.is_dir() else []
+    return sorted(p.name for p in folder.iterdir() if p.suffix.lower() in AUDIO) if folder.is_dir() else []
 
 
-def track_script(ip, first):
+def served_dir():
+    """Папка, которую раздаёт запущенный music_server.py (его MUSIC_DIR), или None."""
+    for pid in run("pgrep", "-f", "music_server.py").split():
+        try:
+            env = dict(v.split("=", 1) for v in Path(f"/proc/{pid}/environ").read_text().split("\0") if "=" in v)
+        except OSError:
+            continue
+        return Path(os.path.expanduser(env.get("MUSIC_DIR", "~/Music")))
+    return None
+
+
+def track_script(ip, album, first):
     """Очередь собираем сами: выбранный трек стартует сразу, остальные дописываются следом
     (без запуска трека №1 и без гонки с асинхронной загрузкой m3u в mpd)."""
-    names = track_names()
+    names = track_names(album)
     i = names.index(first)
     order = names[i:] + names[:i]  # после последнего трека круг продолжается с начала
     src = re.search(r"src (\S+)", run("ip", "route", "get", ip))
     if not src:
         sys.exit("нет маршрута до колонки")
+    folder = MUSIC_DIR / album
     try:
         socket.create_connection(("127.0.0.1", MUSIC_PORT), timeout=1).close()
+        up = served_dir() == folder
     except OSError:
+        up = False
+    if not up:
+        # music_server раздаёт одну папку: для другого альбома перезапускаем его на ней
+        subprocess.run(["pkill", "-f", "music_server.py"])
         subprocess.Popen(["python3", str(MUSIC / "music_server.py")], start_new_session=True,
+                         env={**os.environ, "MUSIC_DIR": str(folder)},
                          stdout=open("/tmp/music-server.log", "w"), stderr=subprocess.STDOUT)
         time.sleep(1)
     urls = [shlex.quote(f"http://{src[1]}:{MUSIC_PORT}/files/{quote(n)}") for n in order]
@@ -197,8 +221,8 @@ def ctl(ip, action, arg):
         cmd = ["bash", str(MUSIC / "stop.sh")]
     elif action in ("pause", "resume", "next", "prev"):
         cmd = [*SSH, f"root@{ip}", f"{MUSICCTL} {action}"]
-    elif action == "track" and arg in track_names():
-        cmd = [*SSH, f"root@{ip}", track_script(ip, arg)]
+    elif action == "track" and (track := arg.rpartition("/"))[0] in ["", *album_names()] and track[2] in track_names(track[0]):
+        cmd = [*SSH, f"root@{ip}", track_script(ip, track[0], track[2])]
     elif action == "random" and arg in ("on", "off"):
         # shortcut: mpc лежит в Entware (/opt/bin), как и сам mpd; на живой колонке не проверено
         cmd = [*SSH, f"root@{ip}", f"PATH=/opt/bin:$PATH mpc random {arg}"]
@@ -224,6 +248,8 @@ if __name__ == "__main__":
     if args[0] == "status":
         print(json.dumps(status(args[1])))
     elif args[0] == "tracks":
-        print(json.dumps(track_names()))
+        albums = album_names()
+        album = args[1] if args[1] in albums else ""
+        print(json.dumps({"albums": albums, "album": album, "tracks": track_names(album)}))
     elif args[0] == "ctl":
         ctl(args[1], args[2], args[3])
