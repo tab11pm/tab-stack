@@ -258,7 +258,7 @@ Scope {
         property bool petSeated: false
         property bool occluded: false
         property bool nearby: false
-        readonly property bool shown: petSeated || !occluded || nearby || dockHover.hovered || dockMenu.visible
+        readonly property bool shown: petSeated || !occluded || nearby || dockHover.hovered || dockMenu.visible || addMenu.visible
         screen: screenShell.output
         anchors.bottom: true
         implicitWidth: Math.min(screenShell.output.width - 32, Dock.entries.length * 48 + 68)
@@ -281,10 +281,16 @@ Scope {
                 anchors { fill: parent; margins: 6 }
                 spacing: 6
                 ActionButton {
-                    icon.source: Qt.resolvedUrl("icons/applications.svg"); hint: "Все приложения"
+                    icon.source: Qt.resolvedUrl("icons/applications.svg"); hint: "Все приложения\nПКМ — добавить в док"
                     icon.width: 24; icon.height: 24; padding: 9
                     Layout.preferredWidth: 42; Layout.preferredHeight: 42
                     onClicked: Quickshell.execDetached([Settings.configHome + "/shojiwm/scripts/launcher"])
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.RightButton
+                        // Above the dock: at the cursor it opens off the bottom of the screen.
+                        onClicked: addMenu.popup(6, -addMenu.height - 8)
+                    }
                 }
                 Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: 24; color: Theme.line }
                 ListView {
@@ -317,7 +323,10 @@ Scope {
                                 acceptedButtons: Qt.RightButton | Qt.MiddleButton
                                 onClicked: mouse => {
                                     if (mouse.button === Qt.MiddleButton) Dock.launch(app.modelData);
-                                    else { dockMenu.entry = app.modelData; dockMenu.popup(); }
+                                    else {
+                                        dockMenu.entry = app.modelData;
+                                        dockMenu.popup(app.mapToItem(dockPill, 0, 0).x, -dockMenu.implicitHeight - 8);
+                                    }
                                 }
                             }
                         }
@@ -342,6 +351,26 @@ Scope {
                         if (Dock.isPinned(dockMenu.entry.key)) Dock.unpin(dockMenu.entry.key);
                         else Dock.pin(dockMenu.entry.key);
                     }
+                }
+            }
+            Menu {
+                id: addMenu
+                popupType: Popup.Window
+                // Hundreds of apps: cap the height so the list scrolls instead of leaving the screen.
+                height: Math.min(implicitHeight, 520)
+                palette { window: Theme.surface; windowText: Theme.ink; highlight: Theme.hover; highlightedText: Theme.ink }
+                Instantiator {
+                    model: Dock.addable
+                    delegate: MenuItem {
+                        required property var modelData
+                        text: modelData.name
+                        icon.source: Quickshell.iconPath(modelData.icon, "application-x-executable")
+                        icon.width: 18; icon.height: 18
+                        icon.color: "transparent"
+                        onTriggered: Dock.pin(modelData.id)
+                    }
+                    onObjectAdded: (index, object) => addMenu.insertItem(index, object)
+                    onObjectRemoved: (index, object) => addMenu.removeItem(object)
                 }
             }
         }

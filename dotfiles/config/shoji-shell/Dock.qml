@@ -212,6 +212,11 @@ Singleton {
         view.writeAdapter();
     }
 
+    // What "add to the dock" offers: every launchable app not already pinned.
+    readonly property var addable: DesktopEntries.applications.values
+        .filter(e => !e.noDisplay && pinned.indexOf(e.id) < 0)
+        .sort((a, b) => a.name.localeCompare(b.name))
+
     function pin(key) {
         if (!key || isPinned(key))
             return;
