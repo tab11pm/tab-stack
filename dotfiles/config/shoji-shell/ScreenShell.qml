@@ -281,10 +281,20 @@ Scope {
                 anchors { fill: parent; margins: 6 }
                 spacing: 6
                 ActionButton {
-                    icon.source: Qt.resolvedUrl("icons/applications.svg"); hint: "Все приложения"
+                    id: appsButton
+                    icon.source: Qt.resolvedUrl("icons/applications.svg"); hint: "Все приложения\nПКМ — добавить в док"
                     icon.width: 24; icon.height: 24; padding: 9
                     Layout.preferredWidth: 42; Layout.preferredHeight: 42
                     onClicked: Quickshell.execDetached([Settings.configHome + "/shojiwm/scripts/launcher"])
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.RightButton
+                        onClicked: dockMenu.show(appsButton, Dock.addable.map(e => ({
+                            text: e.name,
+                            icon: Quickshell.iconPath(e.icon, "application-x-executable"),
+                            run: () => Dock.pin(e.id)
+                        })))
+                    }
                 }
                 Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: 24; color: Theme.line }
                 ListView {
@@ -293,16 +303,61 @@ Scope {
                     orientation: ListView.Horizontal
                     boundsBehavior: Flickable.StopAtBounds
                     clip: true
+                    // A flick would steal the drag that reorders pins; only scroll when the row overflows.
+                    interactive: contentWidth > width
                     model: Dock.entries
+                    // Drag state lives here, not in the model: rebuilding the row mid-drag would
+                    // destroy the delegate being dragged. The model changes once, on release.
+                    property int dragFrom: -1
+                    property int dragTo: -1
+                    property real dragDx: 0
                     delegate: Item {
                         id: app
                         required property var modelData
+                        required property int index
                         width: 48; height: 48
+                        z: dragging ? 1 : 0
                         readonly property bool active: modelData.windows.indexOf(Dock.activeWindow) >= 0
+                        readonly property bool dragging: appList.dragFrom === index
+                        // Make room for the dragged pin at the slot it is over.
+                        readonly property real shift: {
+                            const from = appList.dragFrom, to = appList.dragTo;
+                            if (from < 0 || dragging) return 0;
+                            if (from < to && index > from && index <= to) return -width;
+                            if (from > to && index >= to && index < from) return width;
+                            return 0;
+                        }
+                        transform: Translate {
+                            x: app.dragging ? appList.dragDx : app.shift
+                            Behavior on x { enabled: !app.dragging; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                        }
                         Button {
                             id: appButton
                             anchors { top: parent.top; left: parent.left; right: parent.right; margins: 3 }
                             height: 40; hoverEnabled: true
+                            DragHandler {
+                                enabled: app.index < Dock.split
+                                target: null
+                                yAxis.enabled: false
+                                onActiveChanged: {
+                                    if (active) {
+                                        appList.dragFrom = app.index;
+                                        appList.dragTo = app.index;
+                                        return;
+                                    }
+                                    const key = app.modelData.key, from = appList.dragFrom, to = appList.dragTo;
+                                    appList.dragFrom = -1;
+                                    appList.dragTo = -1;
+                                    appList.dragDx = 0;
+                                    if (to !== from) Dock.reorder(key, to);
+                                }
+                                onActiveTranslationChanged: {
+                                    if (!active) return;
+                                    appList.dragDx = activeTranslation.x;
+                                    appList.dragTo = Math.max(0, Math.min(Dock.split - 1,
+                                        app.index + Math.round(activeTranslation.x / app.width)));
+                                }
+                            }
                             Accessible.name: app.modelData.name
                             background: Rectangle { radius: 13; color: app.active ? Theme.hover : appButton.hovered ? Theme.raised : "transparent" }
                             contentItem: Image {
@@ -317,7 +372,15 @@ Scope {
                                 acceptedButtons: Qt.RightButton | Qt.MiddleButton
                                 onClicked: mouse => {
                                     if (mouse.button === Qt.MiddleButton) Dock.launch(app.modelData);
-                                    else { dockMenu.entry = app.modelData; dockMenu.popup(); }
+                                    else {
+                                        const entry = app.modelData;
+                                        const pinned = Dock.isPinned(entry.key);
+                                        dockMenu.show(appButton, [
+                                            { text: "Новое окно", enabled: !!entry.entry, run: () => Dock.launch(entry) },
+                                            { text: pinned ? "Открепить" : "Закрепить",
+                                              run: () => pinned ? Dock.unpin(entry.key) : Dock.pin(entry.key) }
+                                        ]);
+                                    }
                                 }
                             }
                         }
@@ -330,17 +393,55 @@ Scope {
                     }
                 }
             }
-            Menu {
+            // A positioned popup rather than a Controls Menu: the compositor flipped
+            // the Menu below the dock no matter where it was asked to open.
+            PopupWindow {
                 id: dockMenu
-                property var entry: null
-                popupType: Popup.Window
-                palette { window: Theme.surface; windowText: Theme.ink; highlight: Theme.hover; highlightedText: Theme.ink }
-                MenuItem { text: "Новое окно"; enabled: dockMenu.entry && dockMenu.entry.entry; onTriggered: Dock.launch(dockMenu.entry) }
-                MenuItem {
-                    text: dockMenu.entry && Dock.isPinned(dockMenu.entry.key) ? "Открепить" : "Закрепить"
-                    onTriggered: {
-                        if (Dock.isPinned(dockMenu.entry.key)) Dock.unpin(dockMenu.entry.key);
-                        else Dock.pin(dockMenu.entry.key);
+                // { text, icon, enabled, run }
+                property var actions: []
+                function show(item, list) {
+                    actions = list;
+                    anchor.item = item;
+                    visible = true;
+                }
+                anchor.edges: Edges.Top
+                anchor.gravity: Edges.Top
+                anchor.margins.top: -8
+                grabFocus: true
+                color: "transparent"
+                implicitWidth: 240
+                // Hundreds of apps: cap the height so the list scrolls instead of leaving the screen.
+                implicitHeight: Math.min(menuList.contentHeight + 12, 520)
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 14; color: Theme.surface; border.color: Theme.line
+                    ListView {
+                        id: menuList
+                        anchors { fill: parent; margins: 6 }
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+                        model: dockMenu.actions
+                        delegate: Rectangle {
+                            id: row
+                            required property var modelData
+                            width: ListView.view.width; height: 34; radius: 9
+                            enabled: modelData.enabled !== false
+                            opacity: enabled ? 1 : 0.4
+                            color: rowHover.hovered ? Theme.hover : "transparent"
+                            HoverHandler { id: rowHover }
+                            TapHandler { onTapped: { dockMenu.visible = false; row.modelData.run(); } }
+                            RowLayout {
+                                anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                                spacing: 8
+                                Image {
+                                    visible: !!row.modelData.icon
+                                    source: row.modelData.icon || ""
+                                    sourceSize { width: 18; height: 18 }
+                                    Layout.preferredWidth: 18; Layout.preferredHeight: 18
+                                }
+                                UiText { text: row.modelData.text; Layout.fillWidth: true }
+                            }
+                        }
                     }
                 }
             }
