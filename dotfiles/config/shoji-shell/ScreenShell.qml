@@ -303,16 +303,61 @@ Scope {
                     orientation: ListView.Horizontal
                     boundsBehavior: Flickable.StopAtBounds
                     clip: true
+                    // A flick would steal the drag that reorders pins; only scroll when the row overflows.
+                    interactive: contentWidth > width
                     model: Dock.entries
+                    // Drag state lives here, not in the model: rebuilding the row mid-drag would
+                    // destroy the delegate being dragged. The model changes once, on release.
+                    property int dragFrom: -1
+                    property int dragTo: -1
+                    property real dragDx: 0
                     delegate: Item {
                         id: app
                         required property var modelData
+                        required property int index
                         width: 48; height: 48
+                        z: dragging ? 1 : 0
                         readonly property bool active: modelData.windows.indexOf(Dock.activeWindow) >= 0
+                        readonly property bool dragging: appList.dragFrom === index
+                        // Make room for the dragged pin at the slot it is over.
+                        readonly property real shift: {
+                            const from = appList.dragFrom, to = appList.dragTo;
+                            if (from < 0 || dragging) return 0;
+                            if (from < to && index > from && index <= to) return -width;
+                            if (from > to && index >= to && index < from) return width;
+                            return 0;
+                        }
+                        transform: Translate {
+                            x: app.dragging ? appList.dragDx : app.shift
+                            Behavior on x { enabled: !app.dragging; NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                        }
                         Button {
                             id: appButton
                             anchors { top: parent.top; left: parent.left; right: parent.right; margins: 3 }
                             height: 40; hoverEnabled: true
+                            DragHandler {
+                                enabled: app.index < Dock.split
+                                target: null
+                                yAxis.enabled: false
+                                onActiveChanged: {
+                                    if (active) {
+                                        appList.dragFrom = app.index;
+                                        appList.dragTo = app.index;
+                                        return;
+                                    }
+                                    const key = app.modelData.key, from = appList.dragFrom, to = appList.dragTo;
+                                    appList.dragFrom = -1;
+                                    appList.dragTo = -1;
+                                    appList.dragDx = 0;
+                                    if (to !== from) Dock.reorder(key, to);
+                                }
+                                onActiveTranslationChanged: {
+                                    if (!active) return;
+                                    appList.dragDx = activeTranslation.x;
+                                    appList.dragTo = Math.max(0, Math.min(Dock.split - 1,
+                                        app.index + Math.round(activeTranslation.x / app.width)));
+                                }
+                            }
                             Accessible.name: app.modelData.name
                             background: Rectangle { radius: 13; color: app.active ? Theme.hover : appButton.hovered ? Theme.raised : "transparent" }
                             contentItem: Image {
