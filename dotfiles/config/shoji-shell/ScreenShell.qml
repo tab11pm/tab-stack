@@ -258,7 +258,7 @@ Scope {
         property bool petSeated: false
         property bool occluded: false
         property bool nearby: false
-        readonly property bool shown: petSeated || !occluded || nearby || dockHover.hovered || dockMenu.visible || addMenu.visible
+        readonly property bool shown: petSeated || !occluded || nearby || dockHover.hovered || dockMenu.visible
         screen: screenShell.output
         anchors.bottom: true
         implicitWidth: Math.min(screenShell.output.width - 32, Dock.entries.length * 48 + 68)
@@ -281,6 +281,7 @@ Scope {
                 anchors { fill: parent; margins: 6 }
                 spacing: 6
                 ActionButton {
+                    id: appsButton
                     icon.source: Qt.resolvedUrl("icons/applications.svg"); hint: "Все приложения\nПКМ — добавить в док"
                     icon.width: 24; icon.height: 24; padding: 9
                     Layout.preferredWidth: 42; Layout.preferredHeight: 42
@@ -288,8 +289,11 @@ Scope {
                     MouseArea {
                         anchors.fill: parent
                         acceptedButtons: Qt.RightButton
-                        // Above the dock: at the cursor it opens off the bottom of the screen.
-                        onClicked: addMenu.popup(6, -addMenu.height - 8)
+                        onClicked: dockMenu.show(appsButton, Dock.addable.map(e => ({
+                            text: e.name,
+                            icon: Quickshell.iconPath(e.icon, "application-x-executable"),
+                            run: () => Dock.pin(e.id)
+                        })))
                     }
                 }
                 Rectangle { Layout.preferredWidth: 1; Layout.preferredHeight: 24; color: Theme.line }
@@ -324,8 +328,13 @@ Scope {
                                 onClicked: mouse => {
                                     if (mouse.button === Qt.MiddleButton) Dock.launch(app.modelData);
                                     else {
-                                        dockMenu.entry = app.modelData;
-                                        dockMenu.popup(app.mapToItem(dockPill, 0, 0).x, -dockMenu.implicitHeight - 8);
+                                        const entry = app.modelData;
+                                        const pinned = Dock.isPinned(entry.key);
+                                        dockMenu.show(appButton, [
+                                            { text: "Новое окно", enabled: !!entry.entry, run: () => Dock.launch(entry) },
+                                            { text: pinned ? "Открепить" : "Закрепить",
+                                              run: () => pinned ? Dock.unpin(entry.key) : Dock.pin(entry.key) }
+                                        ]);
                                     }
                                 }
                             }
@@ -339,38 +348,56 @@ Scope {
                     }
                 }
             }
-            Menu {
+            // A positioned popup rather than a Controls Menu: the compositor flipped
+            // the Menu below the dock no matter where it was asked to open.
+            PopupWindow {
                 id: dockMenu
-                property var entry: null
-                popupType: Popup.Window
-                palette { window: Theme.surface; windowText: Theme.ink; highlight: Theme.hover; highlightedText: Theme.ink }
-                MenuItem { text: "Новое окно"; enabled: dockMenu.entry && dockMenu.entry.entry; onTriggered: Dock.launch(dockMenu.entry) }
-                MenuItem {
-                    text: dockMenu.entry && Dock.isPinned(dockMenu.entry.key) ? "Открепить" : "Закрепить"
-                    onTriggered: {
-                        if (Dock.isPinned(dockMenu.entry.key)) Dock.unpin(dockMenu.entry.key);
-                        else Dock.pin(dockMenu.entry.key);
-                    }
+                // { text, icon, enabled, run }
+                property var actions: []
+                function show(item, list) {
+                    actions = list;
+                    anchor.item = item;
+                    visible = true;
                 }
-            }
-            Menu {
-                id: addMenu
-                popupType: Popup.Window
+                anchor.edges: Edges.Top
+                anchor.gravity: Edges.Top
+                anchor.margins.top: -8
+                grabFocus: true
+                color: "transparent"
+                implicitWidth: 240
                 // Hundreds of apps: cap the height so the list scrolls instead of leaving the screen.
-                height: Math.min(implicitHeight, 520)
-                palette { window: Theme.surface; windowText: Theme.ink; highlight: Theme.hover; highlightedText: Theme.ink }
-                Instantiator {
-                    model: Dock.addable
-                    delegate: MenuItem {
-                        required property var modelData
-                        text: modelData.name
-                        icon.source: Quickshell.iconPath(modelData.icon, "application-x-executable")
-                        icon.width: 18; icon.height: 18
-                        icon.color: "transparent"
-                        onTriggered: Dock.pin(modelData.id)
+                implicitHeight: Math.min(menuList.contentHeight + 12, 520)
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 14; color: Theme.surface; border.color: Theme.line
+                    ListView {
+                        id: menuList
+                        anchors { fill: parent; margins: 6 }
+                        clip: true
+                        boundsBehavior: Flickable.StopAtBounds
+                        model: dockMenu.actions
+                        delegate: Rectangle {
+                            id: row
+                            required property var modelData
+                            width: ListView.view.width; height: 34; radius: 9
+                            enabled: modelData.enabled !== false
+                            opacity: enabled ? 1 : 0.4
+                            color: rowHover.hovered ? Theme.hover : "transparent"
+                            HoverHandler { id: rowHover }
+                            TapHandler { onTapped: { dockMenu.visible = false; row.modelData.run(); } }
+                            RowLayout {
+                                anchors { fill: parent; leftMargin: 8; rightMargin: 8 }
+                                spacing: 8
+                                Image {
+                                    visible: !!row.modelData.icon
+                                    source: row.modelData.icon || ""
+                                    sourceSize { width: 18; height: 18 }
+                                    Layout.preferredWidth: 18; Layout.preferredHeight: 18
+                                }
+                                UiText { text: row.modelData.text; Layout.fillWidth: true }
+                            }
+                        }
                     }
-                    onObjectAdded: (index, object) => addMenu.insertItem(index, object)
-                    onObjectRemoved: (index, object) => addMenu.removeItem(object)
                 }
             }
         }
