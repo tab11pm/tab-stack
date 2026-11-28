@@ -3,12 +3,11 @@
 # build/install scripts; safe to re-run. Does not touch GPU drivers.
 set -euo pipefail
 root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-with_sleep_lock=0 with_notifications=0
+with_sleep_lock=0
 for arg in "$@"; do
     case "$arg" in
         --with-sleep-lock) with_sleep_lock=1 ;;
-        --with-notifications) with_notifications=1 ;;
-        -h|--help) echo "Usage: $0 [--with-sleep-lock] [--with-notifications]"; exit 0 ;;
+        -h|--help) echo "Usage: $0 [--with-sleep-lock]"; exit 0 ;;
         *) echo "Unknown option: $arg" >&2; exit 2 ;;
     esac
 done
@@ -65,8 +64,11 @@ else
     (cd "$checkout" && ./dist/install.sh --no-build --no-config)
 fi
 
-if [[ "$with_notifications" -eq 1 ]]; then
-    step 'Patched Quickshell (notifications)'
+step 'Patched Quickshell'
+# install.py refuses to install shoji-shell without it.
+if [[ -x "${XDG_DATA_HOME:-$HOME/.local/share}/shoji-shell/quickshell/bin/quickshell" ]]; then
+    echo 'Already installed: patched Quickshell'
+else
     "$root/scripts/build-quickshell.sh"
     cmake --install "$(ls -td "$root"/.build/quickshell.*/ | head -n 1)build"
 fi
